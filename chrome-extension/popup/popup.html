@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SahabNote</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <h1>SahabNote</h1>
+      <div id="status-bar">
+        <span id="online-indicator" class="offline">○</span>
+        <span id="sync-status">ready</span>
+      </div>
+    </div>
+
+    <div id="note-list-container">
+      <input type="text" id="search-input" placeholder="Search notes..." />
+      <div id="note-list">
+        <div class="empty-state">No notes yet. Create one below!</div>
+      </div>
+    </div>
+
+    <div id="editor-container">
+      <input type="text" id="note-title" placeholder="Note title..." />
+      <textarea id="note-content" placeholder="Start writing..." rows="8"></textarea>
+      <div id="editor-actions">
+        <button id="save-btn" class="btn btn-primary" disabled>💾 Save</button>
+        <button id="copy-btn" class="btn" disabled>📋 Copy</button>
+        <button id="clear-btn" class="btn" disabled>🗑 Clear</button>
+        <button id="delete-btn" class="btn btn-danger" disabled>✕ Delete</button>
+        <button id="new-btn" class="btn">+ New</button>
+        <button id="sync-btn" class="btn">⟳ Sync</button>
+        <button id="settings-btn" class="btn">⚙</button>
+      </div>
+      <div id="footer-stats">
+        <span id="char-count">Chars: 0</span>
+        <span id="word-count">Words: 0</span>
+        <span id="line-count">Lines: 0</span>
+        <span id="token-count">Tokens: ~0</span>
+      </div>
+      <div id="note-status">
+        <span id="status-text">No note selected</span>
+        <span id="last-saved"></span>
+      </div>
+    </div>
+
+    <div id="setup-notice" class="hidden">
+      <p>Please configure your server settings first.</p>
+      <button id="go-settings-btn" class="btn btn-primary">Open Settings</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
