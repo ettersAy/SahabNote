@@ -53,13 +53,13 @@
     <input type="password" id="auth-token" placeholder="Your auth token or sync key" />
 
     <label>
-      <input type="checkbox" id="show-token" onchange="toggleTokenVisibility()" />
+      <input type="checkbox" id="show-token" />
       Show token
     </label>
 
     <div class="actions">
-      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
-      <button class="btn" onclick="testConnection()">Test Connection</button>
+      <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
+      <button class="btn" id="test-connection-btn">Test Connection</button>
     </div>
 
     <div id="connection-status" class="status hidden"></div>
@@ -82,8 +82,8 @@
     </div>
 
     <div class="actions">
-      <button class="btn btn-primary" onclick="doRegister()">Register</button>
-      <button class="btn" onclick="doLogin()">Login</button>
+      <button class="btn btn-primary" id="register-btn">Register</button>
+      <button class="btn" id="login-btn">Login</button>
     </div>
     <div id="account-status" class="status hidden"></div>
   </div>
