@@ -30,14 +30,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function setupPeriodicSync() {
-  chrome.alarms.create('syncNotes', { periodInMinutes: 5 });
+  if (chrome.alarms) {
+    chrome.alarms.create('syncNotes', { periodInMinutes: 5 });
+  } else {
+    // Fallback: use a simple interval if alarms API is unavailable
+    setInterval(handleSync, 5 * 60 * 1000);
+    console.warn('chrome.alarms API not available, falling back to setInterval');
+  }
 }
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'syncNotes') {
-    handleSync();
-  }
-});
+if (chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'syncNotes') {
+      handleSync();
+    }
+  });
+}
 
 async function handleSync() {
   try {
