@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SahabNote Web</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #app { display: flex; flex: 1; }
+    #sidebar {
+      width: 280px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+    }
+    #sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #sidebar-header h1 { font-size: 18px; }
+    #status-indicator { font-size: 12px; }
+    #search-input {
+      margin: 10px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    #note-list { flex: 1; overflow-y: auto; }
+    .note-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .note-item:hover { background: #f5f5f5; }
+    .note-item.active { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+    .btn-new-note {
+      margin: 10px;
+      padding: 10px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #editor {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background: #fff;
+    }
+    #title-input {
+      font-size: 22px;
+      font-weight: 700;
+      border: none;
+      outline: none;
+      padding: 8px 0;
+      margin-bottom: 12px;
+      border-bottom: 2px solid transparent;
+    }
+    #title-input:focus { border-bottom-color: #3b82f6; }
+    #content-textarea {
+      flex: 1;
+      border: none;
+      outline: none;
+      resize: none;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 8px 0;
+      font-family: inherit;
+    }
+    #actions {
+      display: flex;
+      gap: 8px;
+      padding: 12px 0;
+      border-top: 1px solid #e0e0e0;
+    }
+    .btn {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn:hover { background: #f5f5f5; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-primary { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .btn-danger { color: #ef4444; }
+    #footer-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      color: #888;
+      padding: 6px 0;
+    }
+    #note-status {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #999;
+    }
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #login-screen.hidden { display: none; }
+    #login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 360px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    }
+    #login-box h2 { margin-bottom: 20px; }
+    #login-box input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    #login-box .btn { width: 100%; margin-bottom: 6px; }
+    .btn-secondary { background: #6b7280; color: white; border-color: #6b7280; }
+    .error-msg { color: #ef4444; font-size: 13px; margin-bottom: 8px; }
+    .success-msg { color: #22c55e; font-size: 13px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Login Screen -->
+  <div id="login-screen">
+    <div id="login-box">
+      <h2>SahabNote Web</h2>
+      <div id="login-msg"></div>
+      <input type="text" id="login-server" placeholder="Server URL (e.g., http://localhost:8000)" />
+      <input type="text" id="login-username" placeholder="Username" />
+      <input type="password" id="login-password" placeholder="Password" />
+      <button class="btn btn-primary" onclick="doLogin()">Login</button>
+      <button class="btn btn-secondary" onclick="doRegister()">Register</button>
+      <hr style="margin: 12px 0;" />
+      <input type="text" id="login-sync-key" placeholder="Or use sync key" />
+      <button class="btn" onclick="doSyncKeyLogin()">Use Sync Key</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>SahabNote</h1>
+      <div>
+        <span id="status-indicator">○ offline</span>
+        <button class="btn" style="margin-left:6px;padding:4px 8px;font-size:11px;" onclick="syncNow()">⟳</button>
+      </div>
+    </div>
+    <input type="text" id="search-input" placeholder="Search notes..." oninput="renderNoteList()" />
+    <div id="note-list"></div>
+    <button class="btn-new-note" onclick="createNote()">+ New Note</button>
+  </div>
+
+  <!-- Editor -->
+  <div id="editor">
+    <input type="text" id="title-input" placeholder="Note title..." oninput="scheduleAutoSave()" />
+    <textarea id="content-textarea" placeholder="Start writing..." oninput="onContentChange()"></textarea>
+    <div id="actions">
+      <button class="btn btn-primary" id="save-btn" onclick="saveNote()" disabled>Save</button>
+      <button class="btn" id="copy-btn" onclick="copyNote()" disabled>Copy</button>
+      <button class="btn" id="clear-btn" onclick="clearNote()" disabled>Clear</button>
+      <button class="btn btn-danger" id="delete-btn" onclick="deleteNote()" disabled>Delete</button>
+      <button class="btn" onclick="syncNow()">Sync Now</button>
+    </div>
+    <div id="footer-stats">
+      <span id="char-count">Chars: 0</span>
+      <span id="word-count">Words: 0</span>
+      <span id="line-count">Lines: 0</span>
+      <span id="token-count">Tokens: ~0</span>
+    </div>
+    <div id="note-status">
+      <span id="status-text">No note selected</span>
+      <span id="last-saved"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+let currentNoteId = null;
+let notes = [];
+let serverUrl = localStorage.getItem('server_url') || '';
+let authToken = localStorage.getItem('auth_token') || '';
+let deviceId = localStorage.getItem('device_id') || 'web_' + Math.random().toString(36).substring(2, 10);
+let autoSaveTimer = null;
+
+if (!localStorage.getItem('device_id')) {
+  localStorage.setItem('device_id', deviceId);
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  if (serverUrl) document.getElementById('login-server').value = serverUrl;
+  if (authToken) {
+    document.getElementById('login-screen').classList.add('hidden');
+    loadLocalNotes();
+    renderNoteList();
+    checkConnection();
+  }
+  document.getElementById('content-textarea').addEventListener('input', updateStats);
+});
+
+function showLoginMsg(msg, isError = true) {
+  const el = document.getElementById('login-msg');
+  el.textContent = msg;
+  el.className = isError ? 'error-msg' : 'success-msg';
+}
+
+async function apiRequest(method, path, body) {
+  const url = serverUrl.replace(/\/+$/, '') + path;
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  const resp = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  return await resp.json();
+}
+
+async function doLogin() {
+  const user = document.getElementById('login-username').value;
+  const pass = document.getElementById('login-password').value;
+  serverUrl = document.getElementById('login-server').value || serverUrl;
+  if (!user || !pass) { showLoginMsg('Fill in fields'); return; }
+
+  const data = await apiRequest('POST', '/api/auth/login', { username: user, password: pass });
+  if (data.success) {
+    authToken = data.data.access_token;
+    localStorage.setItem('server_url', serverUrl);
+    localStorage.setItem('auth_token', authToken);
+    document.getElementById('login-screen').classList.add('hidden');
+    loadLocalNotes();
+    renderNoteList();
+    checkConnection();
+  } else {
+    showLoginMsg(data.message || 'Login failed');
+  }
+}
+
+async function doRegister() {
+  const user = document.getElementById('login-username').value;
+  const pass = document.getElementById('login-password').value;
+  serverUrl = document.getElementById('login-server').value || serverUrl;
+  if (!user || !pass) { showLoginMsg('Fill in fields'); return; }
+
+  const data = await apiRequest('POST', '/api/auth/register', { username: user, password: pass });
+  if (data.success) {
+    authToken = data.data.access_token;
+    localStorage.setItem('server_url', serverUrl);
+    localStorage.setItem('auth_token', authToken);
+    showLoginMsg(`Registered! Sync key: ${data.data.sync_key.slice(0, 20)}...`, false);
+    document.getElementById('login-screen').classList.add('hidden');
+    loadLocalNotes();
+    renderNoteList();
+    checkConnection();
+  } else {
+    showLoginMsg(data.message || 'Registration failed');
+  }
+}
+
+async function doSyncKeyLogin() {
+  const syncKey = document.getElementById('login-sync-key').value;
+  serverUrl = document.getElementById('login-server').value || serverUrl;
+  if (!syncKey) { showLoginMsg('Enter sync key'); return; }
+
+  const data = await apiRequest('POST', '/api/auth/sync-key-login', { sync_key: syncKey });
+  if (data.success) {
+    authToken = data.data.access_token;
+    localStorage.setItem('server_url', serverUrl);
+    localStorage.setItem('auth_token', authToken);
+    document.getElementById('login-screen').classList.add('hidden');
+    loadLocalNotes();
+    renderNoteList();
+    checkConnection();
+  } else {
+    showLoginMsg(data.message || 'Invalid sync key');
+  }
+}
+
+async function checkConnection() {
+  try {
+    const data = await apiRequest('GET', '/api/health');
+    const online = data.status === 'ok';
+    document.getElementById('status-indicator').textContent = online ? '● online' : '○ offline';
+    document.getElementById('status-indicator').style.color = online ? '#22c55e' : '#999';
+  } catch {
+    document.getElementById('status-indicator').textContent = '○ offline';
+    document.getElementById('status-indicator').style.color = '#999';
+  }
+}
+
+function loadLocalNotes() {
+  try {
+    const data = localStorage.getItem('web_notes');
+    notes = data ? JSON.parse(data) : [];
+  } catch { notes = []; }
+}
+
+function saveLocalNotes() {
+  localStorage.setItem('web_notes', JSON.stringify(notes));
+}
+
+function renderNoteList() {
+  const list = document.getElementById('note-list');
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const filtered = notes.filter(n => {
+    if (n.deleted_at) return false;
+    if (search) return (n.title || '').toLowerCase().includes(search) || (n.content || '').toLowerCase().includes(search);
+    return true;
+  });
+
+  list.innerHTML = filtered.map(n => {
+    const icons = { synced: '✓', local_only: '+', pending_sync: '⟳', sync_conflict: '!' };
+    const icon = icons[n.sync_status] || '?';
+    const title = n.title || n.content?.slice(0, 50) || 'Untitled';
+    const active = n.client_id === currentNoteId ? 'active' : '';
+    return `<div class="note-item ${active}" onclick="selectNote('${n.client_id}')">${icon} ${escapeHtml(title)}</div>`;
+  }).join('');
+}
+
+function createNote() {
+  const id = 'sn_' + crypto.randomUUID();
+  const now = new Date().toISOString();
+  const note = {
+    id, client_id: id, title: '', content: '', version: 1,
+    device_id: deviceId, sync_status: 'local_only',
+    created_at: now, updated_at: now, deleted_at: null
+  };
+  notes.unshift(note);
+  saveLocalNotes();
+  renderNoteList();
+  selectNote(id);
+}
+
+function selectNote(noteId) {
+  if (currentNoteId) saveNote();
+  const note = notes.find(n => n.client_id === noteId);
+  if (!note) return;
+  currentNoteId = noteId;
+  document.getElementById('title-input').value = note.title || '';
+  document.getElementById('content-textarea').value = note.content || '';
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('copy-btn').disabled = false;
+  document.getElementById('clear-btn').disabled = false;
+  document.getElementById('delete-btn').disabled = false;
+  updateStatusUI(note);
+  updateStats();
+  renderNoteList();
+}
+
+function saveNote() {
+  if (!currentNoteId) return;
+  const idx = notes.findIndex(n => n.client_id === currentNoteId);
+  if (idx === -1) return;
+  const title = document.getElementById('title-input').value.trim();
+  const content = document.getElementById('content-textarea').value;
+  const autoTitle = title || content.split('\n')[0]?.slice(0, 80) || 'Untitled';
+  const now = new Date().toISOString();
+  notes[idx].title = autoTitle;
+  notes[idx].content = content;
+  notes[idx].updated_at = now;
+  notes[idx].version = (notes[idx].version || 1) + 1;
+  if (notes[idx].sync_status !== 'sync_conflict') {
+    notes[idx].sync_status = notes[idx].sync_status === 'local_only' ? 'local_only' : 'pending_sync';
+  }
+  saveLocalNotes();
+  document.getElementById('save-btn').disabled = true;
+  document.getElementById('last-saved').textContent = `Saved: ${now.slice(0, 19)}`;
+  updateStatusUI(notes[idx]);
+  renderNoteList();
+}
+
+function scheduleAutoSave() {
+  if (currentNoteId) {
+    document.getElementById('save-btn').disabled = false;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveNote, 2000);
+  }
+}
+
+function onContentChange() {
+  if (currentNoteId) {
+    document.getElementById('save-btn').disabled = false;
+    scheduleAutoSave();
+  }
+  updateStats();
+}
+
+function updateStats() {
+  const content = document.getElementById('content-textarea').value;
+  const chars = content.length;
+  const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const lines = content ? content.split('\n').length : 0;
+  const tokens = Math.max(1, Math.floor(chars / 4));
+  document.getElementById('char-count').textContent = `Chars: ${chars}`;
+  document.getElementById('word-count').textContent = `Words: ${words}`;
+  document.getElementById('line-count').textContent = `Lines: ${lines}`;
+  document.getElementById('token-count').textContent = `Tokens: ~${tokens}`;
+}
+
+function updateStatusUI(note) {
+  if (!note) {
+    document.getElementById('status-text').textContent = 'No note selected';
+    return;
+  }
+  const colors = { synced: '#22c55e', local_only: '#f97316', pending_sync: '#3b82f6', sync_conflict: '#ef4444' };
+  const status = note.sync_status || 'unknown';
+  document.getElementById('status-text').innerHTML = `Status: <span style="color:${colors[status] || '#666'}">${status}</span>`;
+  document.getElementById('last-saved').textContent = note.updated_at ? `Updated: ${note.updated_at.slice(0, 19)}` : '';
+}
+
+function copyNote() {
+  const content = document.getElementById('content-textarea').value;
+  navigator.clipboard.writeText(content);
+  document.getElementById('status-text').textContent = 'Copied!';
+  setTimeout(() => updateStatusUI(notes.find(n => n.client_id === currentNoteId)), 2000);
+}
+
+function clearNote() {
+  if (!currentNoteId || !confirm('Clear all content?')) return;
+  document.getElementById('title-input').value = '';
+  document.getElementById('content-textarea').value = '';
+  updateStats();
+  saveNote();
+}
+
+function deleteNote() {
+  if (!currentNoteId) return;
+  const note = notes.find(n => n.client_id === currentNoteId);
+  if (!confirm(`Delete "${note?.title || 'Untitled'}"?`)) return;
+  const idx = notes.findIndex(n => n.client_id === currentNoteId);
+  notes[idx].deleted_at = new Date().toISOString();
+  notes[idx].sync_status = 'deleted_pending_sync';
+  saveLocalNotes();
+  currentNoteId = null;
+  document.getElementById('title-input').value = '';
+  document.getElementById('content-textarea').value = '';
+  document.getElementById('save-btn').disabled = true;
+  document.getElementById('copy-btn').disabled = true;
+  document.getElementById('clear-btn').disabled = true;
+  document.getElementById('delete-btn').disabled = true;
+  document.getElementById('status-text').textContent = 'Note deleted';
+  document.getElementById('last-saved').textContent = '';
+  updateStats();
+  renderNoteList();
+}
+
+async function syncNow() {
+  if (!serverUrl || !authToken) { alert('Configure server first'); return; }
+
+  // Push pending
+  const pending = notes.filter(n =>
+    ['local_only', 'pending_sync', 'deleted_pending_sync'].includes(n.sync_status)
+  );
+  if (pending.length > 0) {
+    const pushItems = pending.map(n => ({
+      client_id: n.client_id, title: n.title || '', content: n.content || '',
+      version: n.version || 1, device_id: n.device_id || '',
+      deleted: n.sync_status === 'deleted_pending_sync'
+    }));
+    const pushResp = await apiRequest('POST', '/api/v1/sync/push', { notes: pushItems });
+    if (pushResp.success && pushResp.data) {
+      for (const item of (pushResp.data.synced || [])) {
+        const idx = notes.findIndex(n => n.client_id === item.client_id);
+        if (idx !== -1) { notes[idx].sync_status = 'synced'; if (item.version) notes[idx].version = item.version; }
+      }
+      saveLocalNotes();
+    }
+  }
+
+  // Pull
+  const pullResp = await apiRequest('GET', '/api/v1/sync/pull');
+  if (pullResp.success && pullResp.data.notes) {
+    for (const sn of pullResp.data.notes) {
+      const existing = notes.findIndex(n => n.client_id === sn.client_id);
+      if (existing === -1 && !sn.deleted_at) {
+        notes.push({ id: sn.client_id, server_id: sn.id, client_id: sn.client_id, title: sn.title || '', content: sn.content || '', version: sn.version || 1, device_id: sn.device_id || '', sync_status: 'synced', created_at: sn.created_at, updated_at: sn.updated_at, deleted_at: sn.deleted_at });
+      } else if (existing !== -1 && notes[existing].sync_status === 'synced' && sn.version > notes[existing].version) {
+        notes[existing].title = sn.title || ''; notes[existing].content = sn.content || ''; notes[existing].version = sn.version; notes[existing].updated_at = sn.updated_at; notes[existing].deleted_at = sn.deleted_at;
+      }
+    }
+    saveLocalNotes();
+    renderNoteList();
+    if (currentNoteId) updateStatusUI(notes.find(n => n.client_id === currentNoteId));
+    document.getElementById('status-text').textContent = 'Sync complete!';
+    setTimeout(() => updateStatusUI(notes.find(n => n.client_id === currentNoteId)), 3000);
+  }
+  checkConnection();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>

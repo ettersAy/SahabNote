@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "SahabNote",
+  "version": "1.0.0",
+  "description": "A lightweight, cross-platform note-taking extension with sync support.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SahabNote"
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}
