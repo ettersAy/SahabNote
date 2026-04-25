@@ -161,11 +161,11 @@
       <input type="text" id="login-server" placeholder="Server URL (e.g., http://localhost:8000)" />
       <input type="text" id="login-username" placeholder="Username" />
       <input type="password" id="login-password" placeholder="Password" />
-      <button class="btn btn-primary" onclick="doLogin()">Login</button>
-      <button class="btn btn-secondary" onclick="doRegister()">Register</button>
+      <button class="btn btn-primary" id="login-btn">Login</button>
+      <button class="btn btn-secondary" id="register-btn">Register</button>
       <hr style="margin: 12px 0;" />
       <input type="text" id="login-sync-key" placeholder="Or use sync key" />
-      <button class="btn" onclick="doSyncKeyLogin()">Use Sync Key</button>
+      <button class="btn" id="sync-key-login-btn">Use Sync Key</button>
     </div>
   </div>
 
@@ -175,24 +175,24 @@
       <h1>SahabNote</h1>
       <div>
         <span id="status-indicator">○ offline</span>
-        <button class="btn" style="margin-left:6px;padding:4px 8px;font-size:11px;" onclick="syncNow()">⟳</button>
+        <button class="btn" style="margin-left:6px;padding:4px 8px;font-size:11px;" id="sync-now-btn">⟳</button>
       </div>
     </div>
-    <input type="text" id="search-input" placeholder="Search notes..." oninput="renderNoteList()" />
+    <input type="text" id="search-input" placeholder="Search notes..." />
     <div id="note-list"></div>
-    <button class="btn-new-note" onclick="createNote()">+ New Note</button>
+    <button class="btn-new-note" id="create-note-btn">+ New Note</button>
   </div>
 
   <!-- Editor -->
   <div id="editor">
-    <input type="text" id="title-input" placeholder="Note title..." oninput="scheduleAutoSave()" />
-    <textarea id="content-textarea" placeholder="Start writing..." oninput="onContentChange()"></textarea>
+    <input type="text" id="title-input" placeholder="Note title..." />
+    <textarea id="content-textarea" placeholder="Start writing..."></textarea>
     <div id="actions">
-      <button class="btn btn-primary" id="save-btn" onclick="saveNote()" disabled>Save</button>
-      <button class="btn" id="copy-btn" onclick="copyNote()" disabled>Copy</button>
-      <button class="btn" id="clear-btn" onclick="clearNote()" disabled>Clear</button>
-      <button class="btn btn-danger" id="delete-btn" onclick="deleteNote()" disabled>Delete</button>
-      <button class="btn" onclick="syncNow()">Sync Now</button>
+      <button class="btn btn-primary" id="save-btn" disabled>Save</button>
+      <button class="btn" id="copy-btn" disabled>Copy</button>
+      <button class="btn" id="clear-btn" disabled>Clear</button>
+      <button class="btn btn-danger" id="delete-btn" disabled>Delete</button>
+      <button class="btn" id="editor-sync-btn">Sync Now</button>
     </div>
     <div id="footer-stats">
       <span id="char-count">Chars: 0</span>
@@ -230,6 +230,29 @@ document.addEventListener('DOMContentLoaded', () => {
     checkConnection();
   }
   document.getElementById('content-textarea').addEventListener('input', updateStats);
+
+  // Attach event listeners instead of using inline onclick/oninput
+  document.getElementById('login-btn').addEventListener('click', doLogin);
+  document.getElementById('register-btn').addEventListener('click', doRegister);
+  document.getElementById('sync-key-login-btn').addEventListener('click', doSyncKeyLogin);
+  document.getElementById('sync-now-btn').addEventListener('click', syncNow);
+  document.getElementById('search-input').addEventListener('input', renderNoteList);
+  document.getElementById('create-note-btn').addEventListener('click', createNote);
+  document.getElementById('title-input').addEventListener('input', scheduleAutoSave);
+  document.getElementById('content-textarea').addEventListener('input', onContentChange);
+  document.getElementById('save-btn').addEventListener('click', saveNote);
+  document.getElementById('copy-btn').addEventListener('click', copyNote);
+  document.getElementById('clear-btn').addEventListener('click', clearNote);
+  document.getElementById('delete-btn').addEventListener('click', deleteNote);
+  document.getElementById('editor-sync-btn').addEventListener('click', syncNow);
+
+  // Event delegation for note list items (generated dynamically)
+  document.getElementById('note-list').addEventListener('click', (e) => {
+    const noteItem = e.target.closest('.note-item');
+    if (noteItem) {
+      selectNote(noteItem.dataset.noteId);
+    }
+  });
 });
 
 function showLoginMsg(msg, isError = true) {
@@ -344,7 +367,7 @@ function renderNoteList() {
     const icon = icons[n.sync_status] || '?';
     const title = n.title || n.content?.slice(0, 50) || 'Untitled';
     const active = n.client_id === currentNoteId ? 'active' : '';
-    return `<div class="note-item ${active}" onclick="selectNote('${n.client_id}')">${icon} ${escapeHtml(title)}</div>`;
+    return `<div class="note-item ${active}" data-note-id="${n.client_id}">${icon} ${escapeHtml(title)}</div>`;
   }).join('');
 }
 
