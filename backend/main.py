@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
-from database import init_db, migrate_db, get_db
+from database import init_db, migrate_db, seed_admin_from_env, get_db
 from routes.auth_routes import router as auth_router
 from routes.note_routes import router as note_router
 from routes.sync_routes import router as sync_router
@@ -20,10 +20,12 @@ WEB_DIR = Path(__file__).parent.parent / "web"
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
-    # Apply migrations for existing databases
     db = await get_db()
     try:
+        # Apply migrations for existing databases
         await migrate_db(db)
+        # Auto-seed admin from environment variables (for Render free tier)
+        await seed_admin_from_env(db)
     finally:
         await db.close()
     yield
