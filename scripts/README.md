@@ -30,6 +30,25 @@ xdg-open scripts/health-widget.html
 
 The widget auto-refreshes every 30 seconds.
 
+### `pre_deploy_check.py` (Backend Script)
+
+Located at `backend/scripts/pre_deploy_check.py`, this is a pre-deployment validation script that checks:
+- Module imports work correctly
+- All pytest tests pass
+- Static files serve correctly (with `--live`)
+- Documentation is up to date
+- Environment variables are properly configured
+- Health endpoint responds correctly (with `--live`)
+
+**Usage:**
+```bash
+python3 backend/scripts/pre_deploy_check.py        # Quick check
+python3 backend/scripts/pre_deploy_check.py --live  # Full check with server
+python3 backend/scripts/pre_deploy_check.py --json  # JSON output for CI
+```
+
+See the [deploy instructions](../backend/deploy_instructions.md) for more details.
+
 ## Adding New Scripts
 
-Place any new utility scripts in this directory and update this README accordingly.
+Place any new utility scripts in this directory (or under `backend/scripts/` for backend-related scripts) and update this README accordingly.
