@@ -34,7 +34,15 @@ A lightweight, offline-first, multi-platform note-taking application with server
 
 ## Quick Start
 
-### 1. Start the Backend Server
+### Production Backend (already deployed)
+
+The backend is hosted at **https://sahabnote.onrender.com**
+
+- Health check: https://sahabnote.onrender.com/api/health
+- API docs: https://sahabnote.onrender.com/docs
+- Free tier spins down after 15 min of inactivity; first request after idle may take 30-60s to wake up.
+
+### Local Development Backend
 
 ```bash
 cd backend
@@ -133,9 +141,25 @@ python -m pytest tests/ -v
 ## Settings
 
 Each client allows configuration of:
-- **Server URL**: The backend API URL (e.g., `http://localhost:8000`)
-- **Auth Token**: JWT token or sync key for authentication
+- **Server URL**: The backend API URL (e.g., `http://localhost:8000` for local dev, or `https://sahabnote.onrender.com` for the production backend)
+- **Auth Token**: JWT token or sync key for authentication — use the **same sync key** across all clients to share notes under the same account
 - **Device ID**: Auto-generated unique device identifier
+
+> **⚠️ Important for cross-client sync**: The auth token/sync key is shared per user account. If you register from the Chrome Extension, you'll get a sync key. Use that same sync key in the Android app and Desktop app to sync with the same account. Do **not** register a separate user per client.
+
+### Known Sync Key for User "etters" (Production)
+```
+sn_f9480efa28b70b6bb18885ea09f82c93ed09a6c7d7e6a3c7
+```
+
+## Health Monitoring
+
+Two scripts are available to monitor the backend health:
+
+- **`scripts/health_tray.py`** — Linux system tray icon (requires `pystray` and `Pillow`). Shows green/red dot.
+- **`scripts/health-widget.html`** — Browser widget. Open in any browser, shows green/red indicator.
+
+Both ping `https://sahabnote.onrender.com/api/health` every 30 seconds.
 
 ## Manual Testing Guide
 
