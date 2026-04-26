@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "versions": "node -e \"const fs=require('fs');const pkgs=['expo','react-native','react','@react-native-async-storage/async-storage','expo-clipboard','expo-status-bar'];pkgs.forEach(p=>{try{const v=require(p+'/package.json').version;console.log(p+': '+v)}catch{console.log(p+': NOT INSTALLED')}})\"",
+    "doctor": "npx expo-doctor",
+    "validate": "npm run versions && echo '---' && npx expo config --type public && echo '---' && npm run doctor",
+    "start:worktree": "PORT=${PORT:-8082}; echo \"Starting on port $PORT...\"; npx expo start --clear --port $PORT"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
