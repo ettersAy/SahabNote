@@ -24,7 +24,7 @@ Go to [render.com](https://render.com) and sign up using your GitHub account.
 - **Name**: `sahabnote-backend` (or any name)
 - **Region**: Choose the closest to you
 - **Branch**: `main` (or your default branch)
-- **Runtime**: `Python 3`
+- **Runtime**: `Python 3.12` (select "Python 3" and then choose version 3.12 in the dropdown)
 - **Build Command**: `pip install --only-binary :all: -r backend/requirements.txt`
 - **Start Command**: `cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
 - **Plan**: Free
