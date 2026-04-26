@@ -50,19 +50,77 @@ Once deployed, Render will give you a URL like `https://sahabnote-backend.onrend
 
 ## Admin Panel
 
-The admin panel is accessible at `/admin.html` (e.g., `https://sahabnote-backend.onrender.com/admin.html`).
+The admin panel is a web interface at `/admin.html` — e.g. `https://sahabnote.onrender.com/admin.html`
 
-### Making a User Admin
+> **Important**: There is NO default admin account. You must create one yourself (see below).
 
-After deployment, promote a user to admin via the CLI:
+### How to Access the Admin Panel
 
+1. Open `https://sahabnote.onrender.com/admin.html` in your browser
+2. You will see a login form asking for **Server URL**, **Username**, and **Password**
+3. Enter the server URL (if not pre-filled), then your regular user credentials
+4. If your account has admin privileges, you will see the dashboard. If not, you'll get a "not an admin" error.
+
+### Creating an Admin User
+
+Since there is no registration form on the admin page, you need to:
+
+**Step 1 — Register a regular user first** via any client:
+- Open the main web app at `https://sahabnote.onrender.com/index.html` and register
+- Or register via the API: `POST /api/auth/register` with `{"username": "yourname", "password": "yourpass"}`
+
+**Step 2 — Promote the user to admin** using one of these methods:
+
+#### Option A: Run the seed command locally (if you have the code)
 ```bash
-cd backend && python3 run.py --seed-admin <username>
+# From your local project directory
+cd backend && python3 run.py --seed-admin your-username
 ```
 
-This sets `is_admin = 1` in the `users` table. The user can then log in at `/admin.html` with their regular credentials.
+#### Option B: Use Render's Shell Console (recommended for production)
+1. Go to [render.com](https://dashboard.render.com) and log in
+2. Click on your web service (`sahabnote-backend` or similar)
+3. Go to the **Shell** tab (in the top navigation bar)
+4. A terminal will open inside your running container. Run:
+```bash
+python3 run.py --seed-admin your-username
+```
+5. You should see: `User 'your-username' (ID: 1) is now an admin.`
 
-### Admin API Endpoints
+#### Option C: Direct SQLite (if you have database access)
+```bash
+# Inside Render Shell or locally
+python3 -c "
+import sqlite3
+db = sqlite3.connect('backend/data/sahabnote.db')
+db.execute('UPDATE users SET is_admin = 1 WHERE username = \"your-username\"')
+db.commit()
+print('User promoted to admin')
+db.close()
+"
+```
+
+**Step 3 — Log in at `/admin.html`** with the same username and password you used to register.
+
+> 💡 **Tip**: The health endpoint (`/api/health`) now reports whether the admin interface is available. Check with:
+> ```bash
+> curl https://sahabnote.onrender.com/api/health
+> ```
+> If `"admin_interface": true` is shown, the admin page is accessible.
+
+### What You Can Do in the Admin Panel
+
+| Feature | How |
+|---------|-----|
+| **Dashboard stats** | Cards at the top show total users, notes, active notes, avg per user, admin count |
+| **List users** | The users table shows ID, username, role, note count, masked sync key, created date |
+| **View user notes** | Click on any user row to expand their notes (with content preview) |
+| **Read full note** | Click "View" on any note to see the full content in a modal |
+| **Delete a note** | Click "Delete" on any active note (soft-delete — restorable by an admin) |
+| **Reset sync key** | Click "Reset Key" on any user — this invalidates all their existing sync sessions |
+| **Copy sync key** | Click "Copy" (note: only the masked preview is copied for security) |
+
+### Admin API Endpoints (for developers)
 
 All admin endpoints require a valid JWT token from a user with `is_admin = true`:
 
@@ -76,14 +134,6 @@ All admin endpoints require a valid JWT token from a user with `is_admin = true`
 | `POST` | `/api/admin/users/{id}/reset-sync-key` | Reset a user's sync key |
 | `GET` | `/api/admin/audit-log` | View admin action audit log |
 
-### Database Migrations
-
-On startup, the server automatically applies schema migrations:
-- Adds `is_admin` column to existing `users` table
-- Creates `admin_audit_log` table if it doesn't exist
-
-No manual migration steps are needed.
-
 ## Updating the Clients
 
 | Client | Setting | Value |
@@ -91,6 +141,96 @@ No manual migration steps are needed.
 | **Chrome Extension** | Server URL | `https://sahabnote-backend.onrender.com` (or your actual URL) |
 | **Android App** | Server URL | Hardcoded to `https://sahabnote.onrender.com` in `android/src/App.js` (change `DEFAULT_SERVER_URL` constant) |
 | **Desktop App** | Server URL | In settings dialog |
+
+## Database Management on Render
+
+Render does NOT provide a phpMyAdmin-like interface. The backend uses **SQLite**, which is a single file stored at `backend/data/sahabnote.db` inside the running container.
+
+### How to Access the Database
+
+1. Go to [render.com dashboard](https://dashboard.render.com)
+2. Click on your web service
+3. Go to the **Shell** tab
+4. Once in the shell terminal, you can:
+
+#### View all users
+```bash
+python3 -c "
+import sqlite3
+db = sqlite3.connect('backend/data/sahabnote.db')
+for row in db.execute('SELECT id, username, is_admin, created_at FROM users'):
+    print(row)
+db.close()
+"
+```
+
+#### Count notes per user
+```bash
+python3 -c "
+import sqlite3
+db = sqlite3.connect('backend/data/sahabnote.db')
+for row in db.execute('SELECT u.id, u.username, COUNT(n.id) as notes FROM users u LEFT JOIN notes n ON n.user_id = u.id GROUP BY u.id'):
+    print(row)
+db.close()
+"
+```
+
+#### View recent admin audit logs
+```bash
+python3 -c "
+import sqlite3
+db = sqlite3.connect('backend/data/sahabnote.db')
+for row in db.execute('SELECT * FROM admin_audit_log ORDER BY created_at DESC LIMIT 10'):
+    print(row)
+db.close()
+"
+```
+
+#### Reset a user's password (if needed)
+```bash
+python3 -c "
+from passlib.context import CryptContext
+import sqlite3
+pwd = CryptContext(schemes=['bcrypt'], deprecated='auto')
+hash = pwd.hash('new-password-here')
+db = sqlite3.connect('backend/data/sahabnote.db')
+db.execute('UPDATE users SET password_hash = ? WHERE username = ?', (hash, 'username-here'))
+db.commit()
+db.close()
+print('Password updated')
+"
+```
+
+### Download the Database File (for backup/inspection)
+
+Render's shell doesn't allow direct file download, but you can:
+
+1. Go to the **Shell** tab
+2. Copy the database to a temporary HTTP-accessible location (not recommended for production with sensitive data), or:
+3. Use the admin API to export data:
+```bash
+# List all users with their note counts (JSON output)
+python3 -c "
+import sqlite3, json
+db = sqlite3.connect('backend/data/sahabnote.db')
+db.row_factory = sqlite3.Row
+users = [dict(row) for row in db.execute('SELECT id, username, is_admin, created_at FROM users')]
+print(json.dumps(users, indent=2, default=str))
+db.close()
+"
+```
+
+> **Note**: Render's free tier uses an **ephemeral filesystem**. This means the database file can be lost if the service restarts or is redeployed. For production with persistent data, you MUST switch to PostgreSQL (see below).
+
+### Switching to PostgreSQL (for persistent data)
+
+Render provides a free PostgreSQL database. To use it:
+
+1. Create a PostgreSQL database from the Render dashboard
+2. Set the `DATABASE_URL` environment variable in your web service
+3. Modify `database.py` to use `aiosqlite` for SQLite or a PostgreSQL adapter
+
+> This migration is not yet implemented. The current codebase only supports SQLite.
 
 ## Troubleshooting
 

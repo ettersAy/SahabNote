@@ -103,6 +103,15 @@ All require `Depends(get_current_admin_id)` — returns 403 for non-admins.
 - `migrate_db()` runs on startup to add `is_admin` column and `admin_audit_log` table
 - Fresh `init_db()` already includes both
 
+### Creating an Admin (Production on Render)
+- **No default admin account** exists. You must promote a user.
+- Use Render's **Shell** tab: `python3 run.py --seed-admin <username>`
+- See `backend/deploy_instructions.md` for full guide and DB management commands
+
+### Admin Panel URL
+- `/admin.html` — e.g. `https://sahabnote.onrender.com/admin.html`
+- Health endpoint now reports: `{"admin_interface": true/false}`
+
 ## Health Monitoring Scripts
 - `scripts/health_tray.py` — Linux system tray indicator that pings `https://sahabnote.onrender.com/api/health`
 - `scripts/health-widget.html` — Browser-based health widget (open in any browser) that monitors the same endpoint
