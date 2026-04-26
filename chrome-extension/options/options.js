@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (auth_token) document.getElementById('auth-token').value = auth_token;
   document.getElementById('device-info').textContent =
     `Device ID: ${device_id || 'Not set - will generate on first use'}`;
+
+  // Attach event listeners instead of using inline onclick/onchange
+  document.getElementById('show-token').addEventListener('change', toggleTokenVisibility);
+  document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+  document.getElementById('test-connection-btn').addEventListener('click', testConnection);
+  document.getElementById('register-btn').addEventListener('click', doRegister);
+  document.getElementById('login-btn').addEventListener('click', doLogin);
 });
 
 function toggleTokenVisibility() {
