@@ -317,3 +317,203 @@ def test_invalid_sync_key(client):
     """Test with invalid sync key."""
     response = client.get("/api/v1/notes", headers={"Authorization": "Bearer invalid_key_here"})
     assert response.status_code == 401
+
+
+# --- Admin Tests ---
+
+def _make_admin(user_id):
+    """Helper to make a user admin (direct DB manipulation)."""
+    import asyncio
+    from database import get_db
+
+    async def _set_admin():
+        db = await get_db()
+        try:
+            await db.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (user_id,))
+            await db.commit()
+        finally:
+            await db.close()
+
+    asyncio.run(_set_admin())
+
+
+def test_admin_non_admin_gets_403(client):
+    """Non-admin user gets 403 on admin endpoints."""
+    token, _ = _register(client)
+    resp = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403
+
+
+def test_admin_stats(client):
+    """Admin can view stats."""
+    token, _ = _register(client, "statsadmin", "pass123")
+    login = client.post("/api/auth/login", json={"username": "statsadmin", "password": "pass123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    # Create some notes for context
+    for i in range(3):
+        client.post("/api/v1/notes", json={"client_id": f"sn-{i}", "title": f"N{i}", "content": "x"},
+                     headers={"Authorization": f"Bearer {admin_token}"})
+
+    resp = client.get("/api/admin/stats", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["data"]["total_users"] >= 1
+    assert data["data"]["total_notes"] >= 3
+    assert data["data"]["admin_count"] >= 1
+
+
+def test_admin_list_users(client):
+    """Admin can list users with masked sync keys."""
+    _register(client, "regular_user", "pass123")
+    token, _ = _register(client, "the_admin", "admin123")
+    login = client.post("/api/auth/login", json={"username": "the_admin", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    resp = client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["data"]["users"]) >= 2
+    user = [u for u in data["data"]["users"] if u["username"] == "regular_user"][0]
+    assert "..." in user["sync_key_preview"]
+    assert user["is_admin"] is False
+
+
+def test_admin_list_user_notes(client):
+    """Admin can list notes for a specific user."""
+    user_token, _ = _register(client, "note_user", "pass123")
+    token, _ = _register(client, "admin2", "admin123")
+    login = client.post("/api/auth/login", json={"username": "admin2", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    client.post("/api/v1/notes", json={"client_id": "n1", "title": "Secret Note", "content": "secret"},
+                headers={"Authorization": f"Bearer {user_token}"})
+
+    login2 = client.post("/api/auth/login", json={"username": "note_user", "password": "pass123"})
+    user_id = login2.json()["data"]["user_id"]
+
+    resp = client.get(f"/api/admin/users/{user_id}/notes",
+                      headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["data"]["notes"]) == 1
+    assert data["data"]["notes"][0]["title"] == "Secret Note"
+    assert data["data"]["username"] == "note_user"
+
+
+def test_admin_read_full_note(client):
+    """Admin can read full note content."""
+    user_token, _ = _register(client, "reader", "pass123")
+    token, _ = _register(client, "admin3", "admin123")
+    login = client.post("/api/auth/login", json={"username": "admin3", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    cr = client.post("/api/v1/notes", json={"client_id": "fn", "title": "Full", "content": "Full content here"},
+                     headers={"Authorization": f"Bearer {user_token}"})
+    note_id = cr.json()["data"]["note"]["id"]
+
+    login2 = client.post("/api/auth/login", json={"username": "reader", "password": "pass123"})
+    user_id = login2.json()["data"]["user_id"]
+
+    resp = client.get(f"/api/admin/users/{user_id}/notes/{note_id}",
+                      headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["note"]["content"] == "Full content here"
+
+
+def test_admin_soft_delete_note(client):
+    """Admin can soft-delete a note."""
+    user_token, _ = _register(client, "deluser", "pass123")
+    token, _ = _register(client, "admin4", "admin123")
+    login = client.post("/api/auth/login", json={"username": "admin4", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    cr = client.post("/api/v1/notes", json={"client_id": "del", "title": "Delete", "content": "bye"},
+                     headers={"Authorization": f"Bearer {user_token}"})
+    note_id = cr.json()["data"]["note"]["id"]
+
+    login2 = client.post("/api/auth/login", json={"username": "deluser", "password": "pass123"})
+    user_id = login2.json()["data"]["user_id"]
+
+    resp = client.delete(f"/api/admin/users/{user_id}/notes/{note_id}",
+                         headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    get_resp = client.get(f"/api/admin/users/{user_id}/notes/{note_id}",
+                          headers={"Authorization": f"Bearer {admin_token}"})
+    assert get_resp.json()["data"]["note"]["deleted_at"] is not None
+
+
+def test_admin_hard_delete_note(client):
+    """Admin can hard-delete a note."""
+    user_token, _ = _register(client, "harduser", "pass123")
+    token, _ = _register(client, "admin5", "admin123")
+    login = client.post("/api/auth/login", json={"username": "admin5", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    cr = client.post("/api/v1/notes", json={"client_id": "hd", "title": "HardDel", "content": "x"},
+                     headers={"Authorization": f"Bearer {user_token}"})
+    note_id = cr.json()["data"]["note"]["id"]
+
+    login2 = client.post("/api/auth/login", json={"username": "harduser", "password": "pass123"})
+    user_id = login2.json()["data"]["user_id"]
+
+    resp = client.delete(f"/api/admin/users/{user_id}/notes/{note_id}?hard_delete=true",
+                         headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+
+    get_resp = client.get(f"/api/admin/users/{user_id}/notes/{note_id}",
+                          headers={"Authorization": f"Bearer {admin_token}"})
+    assert get_resp.status_code == 404
+
+
+def test_admin_reset_sync_key(client):
+    """Admin can reset a user's sync key."""
+    user_token, orig_sync = _register(client, "synckeyuser", "pass123")
+    token, _ = _register(client, "admin6", "admin123")
+    login = client.post("/api/auth/login", json={"username": "admin6", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    login2 = client.post("/api/auth/login", json={"username": "synckeyuser", "password": "pass123"})
+    user_id = login2.json()["data"]["user_id"]
+
+    resp = client.post(f"/api/admin/users/{user_id}/reset-sync-key",
+                       headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["data"]["new_sync_key"] != orig_sync
+    assert data["data"]["new_sync_key"].startswith("sn_")
+
+
+def test_admin_audit_log(client):
+    """Admin audit log records actions."""
+    token, _ = _register(client, "auditadmin", "admin123")
+    login = client.post("/api/auth/login", json={"username": "auditadmin", "password": "admin123"})
+    admin_token = login.json()["data"]["access_token"]
+    admin_id = login.json()["data"]["user_id"]
+    _make_admin(admin_id)
+
+    client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+    client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+
+    resp = client.get("/api/admin/audit-log", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["data"]["logs"]) >= 2
