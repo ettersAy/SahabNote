@@ -1,0 +1,53 @@
+# SahabNote — Project-Specific Instructions
+
+This file is auto-loaded by Cline for this project.
+It complements the global `/home/AyoubEtters/.clinerules` with project-specific details.
+See also `CLINE.md` at the project root for the extended human-readable reference.
+
+## Tech Stack
+- **Mobile**: Expo React Native (SDK 54)
+- **Backend**: FastAPI + SQLite
+- **Desktop**: Python Tkinter
+- **Chrome Extension**: Plain JS/HTML (MV3)
+
+## Expo / React Native SDK Versions
+| Package | Version |
+|---------|---------|
+| expo | ~54.0.33 |
+| react-native | 0.81.5 |
+| react | 19.1.0 |
+| @react-native-async-storage/async-storage | 2.2.0 |
+| expo-clipboard | ~8.0.8 |
+| expo-status-bar | ~3.0.9 |
+
+## Available npm Scripts
+| Script | Purpose |
+|--------|---------|
+| `npm run start` | Standard dev server (port 8081) |
+| `npm run start:worktree` | Worktree-safe (port 8082, auto-clear cache) |
+| `npm run versions` | Print all key package versions |
+| `npm run doctor` | Run expo-doctor validation |
+| `npm run validate` | Full validation pipeline |
+
+## Upgrade Script
+`scripts/upgrade-expo.sh` — Reusable SDK upgrade tool.
+```bash
+./scripts/upgrade-expo.sh          # Show current SDK version
+./scripts/upgrade-expo.sh 55       # Upgrade to SDK 55
+```
+
+## Worktree Notes
+- This project lives at: `/home/AyoubEtters/.cline/worktrees/<hash>/SahabNote/`
+- Parent repo: `/srv/dev/SahabNote/`
+- Has its **own isolated** `node_modules` (symlink was broken during SDK 54 upgrade)
+- To create a new branch: `git fetch origin main && git checkout -b <name> origin/main`
+- Cannot `git checkout main` from worktree
+
+## Backend
+```bash
+./start_backend.sh   # Installs deps and starts FastAPI server
+```
+
+## Tested On
+- Expo Go SDK 54
+- Android (via Expo Go)
