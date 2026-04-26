@@ -34,11 +34,15 @@ Go to [render.com](https://render.com) and sign up using your GitHub account.
 
 ### 4. Set Environment Variables (Required)
 
-Add the following environment variable in the **Environment** section:
+Add the following environment variables in the **Environment** section:
 
 | Key | Value | Description |
 |-----|-------|-------------|
 | `SAHABNOTE_SECRET` | `<random-secret-string>` | Used for JWT token signing. Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `ADMIN_USERNAME` | `admin` | (Optional) Auto-create an admin user on first deploy |
+| `ADMIN_PASSWORD` | `<your-admin-password>` | (Optional) Password for the admin user above |
+
+> 💡 **Tip**: If you set both `ADMIN_USERNAME` and `ADMIN_PASSWORD`, the server will automatically create that user as an admin on every deploy (or promote them if they already exist). This is the easiest way to get admin access on Render's free tier — no Shell needed.
 
 ### 5. Deploy
 
