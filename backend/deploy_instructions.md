@@ -53,3 +53,4 @@ Once deployed, Render will give you a URL like `https://sahabnote-backend.onrend
 - The free tier spins down after 15 minutes of inactivity. The first request after inactivity may take 30-60 seconds to wake up.
 - Render provides a free PostgreSQL database if you need it (optional).
 - For production use, consider upgrading to a paid plan.
+- The backend uses SQLite by default, which stores data in `backend/data/sahabnote.db`. This is fine for development but for production you should switch to PostgreSQL.
