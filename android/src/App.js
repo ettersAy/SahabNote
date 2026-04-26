@@ -4,47 +4,26 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  Alert,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-  Modal,
-  ActivityIndicator,
+  StyleSheet, Text, View, TextInput, TouchableOpacity,
+  FlatList, Alert, SafeAreaView, StatusBar, Platform,
+  KeyboardAvoidingView, ScrollView, ActivityIndicator, Keyboard,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import {
-  loadNotes,
-  saveNotes,
-  getDeviceId,
-  getSettings,
-  saveSettings,
-  createNoteObject,
-  SYNC_STATUS,
+  loadNotes, saveNotes, getDeviceId, getSettings, saveSettings,
+  createNoteObject, SYNC_STATUS,
 } from './utils/storage';
 import { SyncClient } from './utils/sync';
 
 const COLORS = {
-  background: '#f8f9fa',
-  surface: '#ffffff',
-  primary: '#3b82f6',
-  primaryDark: '#2563eb',
-  text: '#1a1a1a',
-  textSecondary: '#6b7280',
-  border: '#e5e7eb',
-  danger: '#ef4444',
-  success: '#22c55e',
-  warning: '#f97316',
-  error: '#ef4444',
+  background: '#f8f9fa', surface: '#ffffff', primary: '#3b82f6',
+  primaryDark: '#2563eb', text: '#1a1a1a', textSecondary: '#6b7280',
+  border: '#e5e7eb', danger: '#ef4444', success: '#22c55e',
+  warning: '#f97316', error: '#ef4444',
 };
+
+const DEFAULT_SERVER_URL = 'https://sahabnote.onrender.com';
 
 export default function App() {
   const [notes, setNotes] = useState([]);
@@ -53,50 +32,117 @@ export default function App() {
   const [content, setContent] = useState('');
   const [search, setSearch] = useState('');
   const [deviceId, setDeviceId] = useState('');
-  const [settings, setSettingsData] = useState({});
-  const [showSettings, setShowSettings] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoadingText, setAuthLoadingText] = useState('');
   const [stats, setStats] = useState({ chars: 0, words: 0, lines: 0, tokens: 0 });
   const [noteStatus, setNoteStatus] = useState({ text: 'No note selected', color: COLORS.textSecondary });
-  const [setupUrl, setSetupUrl] = useState('');
-  const [setupToken, setSetupToken] = useState('');
-  const [syncKey, setSyncKey] = useState('');
-  const [registerUser, setRegisterUser] = useState('');
-  const [registerPass, setRegisterPass] = useState('');
+
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
 
   const syncClient = useRef(new SyncClient());
   const autoSaveTimer = useRef(null);
 
-  useEffect(() => {
-    initApp();
-  }, []);
+  useEffect(() => { initApp(); }, []);
 
   const initApp = async () => {
     const did = await getDeviceId();
     setDeviceId(did);
-
     const savedNotes = await loadNotes();
     setNotes(savedNotes);
-
     const savedSettings = await getSettings();
-    setSettingsData(savedSettings);
-    setSetupUrl(savedSettings.server_url || 'http://localhost:8000');
-    setSetupToken(savedSettings.auth_token || '');
-
-    syncClient.current.setServer(savedSettings.server_url || '');
-    syncClient.current.setAuthToken(savedSettings.auth_token || '');
-
-    checkConnection();
+    const authToken = savedSettings.auth_token || '';
+    syncClient.current.setServer(DEFAULT_SERVER_URL);
+    syncClient.current.setAuthToken(authToken);
+    if (authToken) {
+      setIsAuthenticated(true);
+      checkConnection();
+      try {
+        await syncClient.current.pullServerChanges();
+        setNotes(await loadNotes());
+      } catch {}
+    }
+    setIsLoading(false);
   };
 
   const checkConnection = async () => {
     try {
       const resp = await syncClient.current.healthCheck();
       setIsOnline(resp?.status === 'ok');
-    } catch {
-      setIsOnline(false);
+    } catch { setIsOnline(false); }
+  };
+
+  const afterAuthSuccess = async (accessToken) => {
+    await saveSettings({ server_url: DEFAULT_SERVER_URL, auth_token: accessToken });
+    syncClient.current.setAuthToken(accessToken);
+    try { await syncClient.current.pullServerChanges(); } catch {}
+    setNotes(await loadNotes());
+    setIsAuthenticated(true);
+    setAuthLoading(false);
+    checkConnection();
+  };
+
+  const doRegister = async () => {
+    Keyboard.dismiss();
+    if (!loginUser || !loginPass) {
+      Alert.alert('Error', 'Enter a username and password');
+      return;
     }
+    setAuthLoading(true);
+    setAuthLoadingText('Registering...');
+    try {
+      const client = new SyncClient(DEFAULT_SERVER_URL);
+      const resp = await client.request('POST', '/api/auth/register', {
+        username: loginUser, password: loginPass,
+      });
+      if (resp.success) {
+        await afterAuthSuccess(resp.data.access_token);
+      } else {
+        setAuthLoading(false);
+        Alert.alert('Registration Failed', resp.message || 'Please try again');
+      }
+    } catch (e) {
+      setAuthLoading(false);
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const doLogin = async () => {
+    Keyboard.dismiss();
+    if (!loginUser || !loginPass) {
+      Alert.alert('Error', 'Enter your username and password');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthLoadingText('Logging in...');
+    try {
+      const client = new SyncClient(DEFAULT_SERVER_URL);
+      const resp = await client.request('POST', '/api/auth/login', {
+        username: loginUser, password: loginPass,
+      });
+      if (resp.success) {
+        await afterAuthSuccess(resp.data.access_token);
+      } else {
+        setAuthLoading(false);
+        Alert.alert('Login Failed', resp.message || 'Please try again');
+      }
+    } catch (e) {
+      setAuthLoading(false);
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    await saveSettings({});
+    setLoginUser('');
+    setLoginPass('');
+    setIsAuthenticated(false);
+    setIsOnline(false);
+    syncClient.current.setAuthToken('');
   };
 
   const currentNote = notes.find(n => n.client_id === currentNoteId);
@@ -122,9 +168,7 @@ export default function App() {
   };
 
   const selectNote = (noteId) => {
-    // Save current
     if (currentNoteId) saveCurrentNote();
-
     const note = notes.find(n => n.client_id === noteId);
     if (!note) return;
     setCurrentNoteId(noteId);
@@ -138,36 +182,24 @@ export default function App() {
     if (!currentNoteId) return;
     const idx = notes.findIndex(n => n.client_id === currentNoteId);
     if (idx === -1) return;
-
     const autoTitle = title || (content ? content.split('\n')[0].slice(0, 80) : '') || 'Untitled';
     const now = new Date().toISOString();
     const updated = [...notes];
     updated[idx] = {
-      ...updated[idx],
-      title: autoTitle,
-      content,
+      ...updated[idx], title: autoTitle, content,
       updated_at: now,
       version: (updated[idx].version || 1) + 1,
       sync_status:
         updated[idx].sync_status === SYNC_STATUS.LOCAL_ONLY
-          ? SYNC_STATUS.LOCAL_ONLY
-          : SYNC_STATUS.PENDING_SYNC,
+          ? SYNC_STATUS.LOCAL_ONLY : SYNC_STATUS.PENDING_SYNC,
     };
     await saveNotes(updated);
     setNotes(updated);
     updateNoteStatusUI(updated[idx]);
   }, [currentNoteId, title, content, notes]);
 
-  const handleTitleChange = (t) => {
-    setTitle(t);
-    scheduleAutoSave();
-  };
-
-  const handleContentChange = (c) => {
-    setContent(c);
-    updateStats(c);
-    scheduleAutoSave();
-  };
+  const handleTitleChange = (t) => { setTitle(t); scheduleAutoSave(); };
+  const handleContentChange = (c) => { setContent(c); updateStats(c); scheduleAutoSave(); };
 
   const scheduleAutoSave = () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
@@ -194,10 +226,9 @@ export default function App() {
       [SYNC_STATUS.CONFLICT]: COLORS.error,
       [SYNC_STATUS.DELETED_PENDING]: COLORS.textSecondary,
     };
-    const statusLabel = note.sync_status || 'unknown';
     setNoteStatus({
-      text: `Status: ${statusLabel}`,
-      color: colors[statusLabel] || COLORS.textSecondary,
+      text: 'Status: ' + (note.sync_status || 'unknown'),
+      color: colors[note.sync_status] || COLORS.textSecondary,
     });
   };
 
@@ -210,69 +241,48 @@ export default function App() {
     if (!currentNoteId) return;
     Alert.alert('Clear Note', 'Clear all content?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: () => {
-          setTitle('');
-          setContent('');
-          updateStats('');
-          saveCurrentNote();
-        },
-      },
+      { text: 'Clear', style: 'destructive', onPress: () => {
+        setTitle(''); setContent(''); updateStats(''); saveCurrentNote();
+      }},
     ]);
   };
 
   const deleteNote = () => {
     if (!currentNoteId) return;
     const note = notes.find(n => n.client_id === currentNoteId);
-    const noteTitle = note?.title || 'Untitled';
-    Alert.alert('Delete Note', `Delete "${noteTitle}"?`, [
+    const titleStr = note?.title || 'Untitled';
+    Alert.alert('Delete Note', 'Delete "' + titleStr + '"?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const now = new Date().toISOString();
-          const updated = notes.map(n =>
-            n.client_id === currentNoteId
-              ? { ...n, deleted_at: now, sync_status: SYNC_STATUS.DELETED_PENDING }
-              : n
-          );
-          await saveNotes(updated);
-          setNotes(updated);
-          setCurrentNoteId(null);
-          setTitle('');
-          setContent('');
-          updateStats('');
-          setNoteStatus({ text: 'Note deleted', color: COLORS.textSecondary });
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        const now = new Date().toISOString();
+        const updated = notes.map(n =>
+          n.client_id === currentNoteId
+            ? { ...n, deleted_at: now, sync_status: SYNC_STATUS.DELETED_PENDING }
+            : n
+        );
+        await saveNotes(updated);
+        setNotes(updated);
+        setCurrentNoteId(null);
+        setTitle(''); setContent(''); updateStats('');
+        setNoteStatus({ text: 'Note deleted', color: COLORS.textSecondary });
+      }},
     ]);
   };
 
   const syncNow = async () => {
-    if (!settingsData.server_url || !settingsData.auth_token) {
-      Alert.alert('Sync', 'Please configure server settings first.');
-      return;
-    }
     if (!isOnline) {
       Alert.alert('Sync', 'Cannot sync: offline. Changes queued.');
       return;
     }
-
     setIsSyncing(true);
     try {
-      // Push
       await syncClient.current.pushPendingChanges();
-      // Pull
       await syncClient.current.pullServerChanges();
-
       const updatedNotes = await loadNotes();
       setNotes(updatedNotes);
       if (currentNoteId) {
-        const note = updatedNotes.find(n => n.client_id === currentNoteId);
-        if (note) updateNoteStatusUI(note);
+        const n = updatedNotes.find(n => n.client_id === currentNoteId);
+        if (n) updateNoteStatusUI(n);
       }
       Alert.alert('Sync', 'Sync complete!');
     } catch (e) {
@@ -282,77 +292,13 @@ export default function App() {
     }
   };
 
-  const saveSettingsHandler = async () => {
-    const newSettings = { server_url: setupUrl, auth_token: setupToken };
-    await saveSettings(newSettings);
-    setSettingsData(newSettings);
-    syncClient.current.setServer(setupUrl);
-    syncClient.current.setAuthToken(setupToken);
-    setShowSettings(false);
-    checkConnection();
-  };
-
-  const doRegister = async () => {
-    if (!registerUser || !registerPass) {
-      Alert.alert('Error', 'Fill username and password');
-      return;
-    }
-    try {
-      const client = new SyncClient(setupUrl);
-      const resp = await client.request('POST', '/api/auth/register', {
-        username: registerUser,
-        password: registerPass,
-      });
-      if (resp.success) {
-        setSetupToken(resp.data.access_token);
-        setSyncKey(resp.data.sync_key);
-        Alert.alert('Registered!', `Sync key: ${resp.data.sync_key.slice(0, 20)}...\nSaved to settings.`);
-        await saveSettings({ server_url: setupUrl, auth_token: resp.data.access_token });
-        setSettingsData({ server_url: setupUrl, auth_token: resp.data.access_token });
-        syncClient.current.setServer(setupUrl);
-        syncClient.current.setAuthToken(resp.data.access_token);
-      } else {
-        Alert.alert('Error', resp.message || 'Registration failed');
-      }
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    }
-  };
-
-  const doLogin = async () => {
-    if (!registerUser || !registerPass) {
-      Alert.alert('Error', 'Fill username and password');
-      return;
-    }
-    try {
-      const client = new SyncClient(setupUrl);
-      const resp = await client.request('POST', '/api/auth/login', {
-        username: registerUser,
-        password: registerPass,
-      });
-      if (resp.success) {
-        setSetupToken(resp.data.access_token);
-        Alert.alert('Logged in!', `Sync key: ${resp.data.sync_key.slice(0, 20)}...`);
-        await saveSettings({ server_url: setupUrl, auth_token: resp.data.access_token });
-        setSettingsData({ server_url: setupUrl, auth_token: resp.data.access_token });
-        syncClient.current.setServer(setupUrl);
-        syncClient.current.setAuthToken(resp.data.access_token);
-      } else {
-        Alert.alert('Error', resp.message || 'Login failed');
-      }
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    }
-  };
-
   const renderNoteItem = ({ item }) => {
     const icons = {
-      [SYNC_STATUS.SYNCED]: '✓',
+      [SYNC_STATUS.SYNCED]: '\u2713',
       [SYNC_STATUS.LOCAL_ONLY]: '+',
-      [SYNC_STATUS.PENDING_SYNC]: '⟳',
+      [SYNC_STATUS.PENDING_SYNC]: '\u27F3',
       [SYNC_STATUS.CONFLICT]: '!',
     };
-    const icon = icons[item.sync_status] || '?';
     const displayTitle = item.title || item.content?.slice(0, 50) || 'Untitled';
     const isActive = item.client_id === currentNoteId;
     return (
@@ -361,118 +307,129 @@ export default function App() {
         onPress={() => selectNote(item.client_id)}
       >
         <Text style={[styles.noteItemText, isActive && styles.noteItemTextActive]} numberOfLines={1}>
-          {icon} {displayTitle}
+          {icons[item.sync_status] || '?'} {displayTitle}
         </Text>
       </TouchableOpacity>
     );
   };
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingTitle}>SahabNote</Text>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+        <ScrollView contentContainerStyle={styles.loginContainer} keyboardShouldPersistTaps="handled">
+          <Text style={styles.loginTitle}>SahabNote</Text>
+          <Text style={styles.loginSubtitle}>Sign in to sync your notes</Text>
+
+          <TextInput style={styles.loginInput} placeholder="Username"
+            placeholderTextColor={COLORS.textSecondary}
+            value={loginUser} onChangeText={setLoginUser}
+            autoCapitalize="none" autoCorrect={false} editable={!authLoading} />
+          <TextInput style={styles.loginInput} placeholder="Password"
+            placeholderTextColor={COLORS.textSecondary}
+            value={loginPass} onChangeText={setLoginPass}
+            secureTextEntry editable={!authLoading} />
+
+          {authLoading && (
+            <View style={styles.authLoadingRow}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.authLoadingText}>{authLoadingText}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={[styles.loginBtn, authLoading && styles.btnDisabled]}
+            onPress={doLogin} disabled={authLoading}>
+            <Text style={styles.loginBtnText}>Login</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.registerBtn, authLoading && styles.btnDisabled]}
+            onPress={doRegister} disabled={authLoading}>
+            <Text style={styles.registerBtnText}>Register</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.loginServerUrl}>Server: {DEFAULT_SERVER_URL}</Text>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SahabNote</Text>
         <View style={styles.headerRight}>
           <Text style={[styles.statusDot, { color: isOnline ? COLORS.success : COLORS.textSecondary }]}>
-            {isOnline ? '●' : '○'}
+            {isOnline ? '\u25CF' : '\u25CB'}
           </Text>
           <TouchableOpacity style={styles.headerBtn} onPress={syncNow}>
-            <Text style={styles.headerBtnText}>⟳</Text>
+            <Text style={styles.headerBtnText}>{isSyncing ? '...' : '\u27F3'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowSettings(true)}>
-            <Text style={styles.headerBtnText}>⚙</Text>
+          <TouchableOpacity style={styles.headerBtn} onPress={handleLogout}>
+            <Text style={[styles.headerBtnText, { color: COLORS.danger }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Search */}
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search notes..."
+      <TextInput style={styles.searchInput} placeholder="Search notes..."
         placeholderTextColor={COLORS.textSecondary}
-        value={search}
-        onChangeText={setSearch}
-      />
+        value={search} onChangeText={setSearch} />
 
-      {/* Note List */}
       <View style={styles.noteListContainer}>
-        <FlatList
-          data={getFilteredNotes()}
-          keyExtractor={(item) => item.client_id}
+        <FlatList data={getFilteredNotes()} keyExtractor={(item) => item.client_id}
           renderItem={renderNoteItem}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No notes yet. Create one!</Text>
-          }
-          horizontal={false}
-          style={styles.noteList}
-          keyboardShouldPersistTaps="handled"
-        />
+          ListEmptyComponent={<Text style={styles.emptyText}>No notes yet. Create one!</Text>}
+          horizontal={false} style={styles.noteList} keyboardShouldPersistTaps="handled" />
         <TouchableOpacity style={styles.newNoteBtn} onPress={createNewNote}>
           <Text style={styles.newNoteBtnText}>+ New Note</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Editor */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.editorContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <TextInput
-          style={styles.titleInput}
-          placeholder="Note title..."
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <TextInput style={styles.titleInput} placeholder="Note title..."
           placeholderTextColor={COLORS.textSecondary}
-          value={title}
-          onChangeText={handleTitleChange}
-          editable={!!currentNoteId}
-        />
-        <TextInput
-          style={styles.contentInput}
-          placeholder="Start writing..."
+          value={title} onChangeText={handleTitleChange}
+          editable={!!currentNoteId} />
+        <TextInput style={styles.contentInput} placeholder="Start writing..."
           placeholderTextColor={COLORS.textSecondary}
-          value={content}
-          onChangeText={handleContentChange}
-          multiline
-          textAlignVertical="top"
-          editable={!!currentNoteId}
-        />
+          value={content} onChangeText={handleContentChange}
+          multiline textAlignVertical="top" editable={!!currentNoteId} />
 
-        {/* Action Buttons */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnPrimary]}
-            onPress={saveCurrentNote}
-            disabled={!currentNoteId}
-          >
-            <Text style={styles.actionBtnText}>💾</Text>
+          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]}
+            onPress={saveCurrentNote} disabled={!currentNoteId}>
+            <Text style={styles.actionBtnText}>Save</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={copyNote}
-            disabled={!currentNoteId}
-          >
-            <Text style={styles.actionBtnText}>📋</Text>
+          <TouchableOpacity style={styles.actionBtn}
+            onPress={copyNote} disabled={!currentNoteId}>
+            <Text style={styles.actionBtnText}>Copy</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={clearNote}
-            disabled={!currentNoteId}
-          >
-            <Text style={styles.actionBtnText}>🗑</Text>
+          <TouchableOpacity style={styles.actionBtn}
+            onPress={clearNote} disabled={!currentNoteId}>
+            <Text style={styles.actionBtnText}>Clear</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnDanger]}
-            onPress={deleteNote}
-            disabled={!currentNoteId}
-          >
-            <Text style={styles.actionBtnText}>✕</Text>
+          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]}
+            onPress={deleteNote} disabled={!currentNoteId}>
+            <Text style={styles.actionBtnText}>Delete</Text>
           </TouchableOpacity>
           {isSyncing && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
 
-        {/* Footer Stats */}
         <View style={styles.footer}>
           <View style={styles.stats}>
             <Text style={styles.statText}>Chars: {stats.chars}</Text>
@@ -483,308 +440,52 @@ export default function App() {
           <Text style={[styles.noteStatus, { color: noteStatus.color }]}>{noteStatus.text}</Text>
         </View>
       </KeyboardAvoidingView>
-
-      {/* Settings Modal */}
-      <Modal visible={showSettings} animationType="slide" transparent={false}>
-        <SafeAreaView style={styles.modalContainer}>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            <Text style={styles.modalTitle}>Settings</Text>
-
-            <Text style={styles.label}>Server URL</Text>
-            <TextInput
-              style={styles.input}
-              value={setupUrl}
-              onChangeText={setSetupUrl}
-              placeholder="http://localhost:8000"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <Text style={styles.label}>Auth Token / Sync Key</Text>
-            <TextInput
-              style={styles.input}
-              value={setupToken}
-              onChangeText={setSetupToken}
-              placeholder="Your auth token"
-              placeholderTextColor={COLORS.textSecondary}
-              secureTextEntry
-            />
-
-            <Text style={styles.infoText}>Device ID: {deviceId?.slice(0, 20)}...</Text>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.primaryBtn} onPress={saveSettingsHandler}>
-                <Text style={styles.primaryBtnText}>Save Settings</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowSettings(false)}>
-                <Text style={styles.secondaryBtnText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.divider} />
-
-            <Text style={styles.sectionTitle}>Account Setup</Text>
-            <TextInput
-              style={styles.input}
-              value={registerUser}
-              onChangeText={setRegisterUser}
-              placeholder="Username"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-            <TextInput
-              style={styles.input}
-              value={registerPass}
-              onChangeText={setRegisterPass}
-              placeholder="Password"
-              placeholderTextColor={COLORS.textSecondary}
-              secureTextEntry
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.primaryBtn} onPress={doRegister}>
-                <Text style={styles.primaryBtnText}>Register</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={doLogin}>
-                <Text style={styles.secondaryBtnText}>Login</Text>
-              </TouchableOpacity>
-            </View>
-
-            {syncKey ? (
-              <Text style={styles.infoText}>Sync key: {syncKey.slice(0, 30)}...</Text>
-            ) : null}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusDot: {
-    fontSize: 16,
-  },
-  headerBtn: {
-    padding: 6,
-  },
-  headerBtnText: {
-    fontSize: 18,
-  },
-  searchInput: {
-    margin: 12,
-    padding: 10,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    fontSize: 14,
-    color: COLORS.text,
-  },
-  noteListContainer: {
-    maxHeight: 180,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  noteList: {
-    flex: 1,
-  },
-  noteItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  noteItemActive: {
-    backgroundColor: '#dbeafe',
-  },
-  noteItemText: {
-    fontSize: 14,
-    color: COLORS.text,
-  },
-  noteItemTextActive: {
-    color: COLORS.primaryDark,
-    fontWeight: '600',
-  },
-  emptyText: {
-    textAlign: 'center',
-    padding: 20,
-    color: COLORS.textSecondary,
-  },
-  newNoteBtn: {
-    padding: 12,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  newNoteBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  editorContainer: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    margin: 12,
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  titleInput: {
-    fontSize: 18,
-    fontWeight: '600',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    marginBottom: 8,
-    color: COLORS.text,
-  },
-  contentInput: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    color: COLORS.text,
-    paddingVertical: 8,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    alignItems: 'center',
-  },
-  actionBtn: {
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  actionBtnPrimary: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  actionBtnDanger: {
-    borderColor: '#fca5a5',
-  },
-  actionBtnText: {
-    fontSize: 16,
-  },
-  footer: {
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  stats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-  },
-  noteStatus: {
-    fontSize: 11,
-    marginTop: 4,
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 20,
-    color: COLORS.text,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    padding: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 16,
-  },
-  primaryBtn: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  secondaryBtn: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    color: COLORS.text,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 12,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingTitle: { fontSize: 28, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
+  loginContainer: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 40 },
+  loginTitle: { fontSize: 32, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 8 },
+  loginSubtitle: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 32 },
+  loginInput: { padding: 14, backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, fontSize: 15, color: COLORS.text, marginBottom: 12 },
+  authLoadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12, gap: 8 },
+  authLoadingText: { fontSize: 14, color: COLORS.primary },
+  loginBtn: { padding: 14, backgroundColor: COLORS.primary, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+  registerBtn: { padding: 14, backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center', marginBottom: 20 },
+  btnDisabled: { opacity: 0.6 },
+  loginBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  registerBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: 16 },
+  loginServerUrl: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusDot: { fontSize: 16 },
+  headerBtn: { padding: 6 },
+  headerBtnText: { fontSize: 16, color: COLORS.primary, fontWeight: '500' },
+  searchInput: { margin: 12, padding: 10, backgroundColor: COLORS.surface, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text },
+  noteListContainer: { maxHeight: 180, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  noteList: { flex: 1 },
+  noteItem: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.surface },
+  noteItemActive: { backgroundColor: '#dbeafe' },
+  noteItemText: { fontSize: 14, color: COLORS.text },
+  noteItemTextActive: { color: COLORS.primaryDark, fontWeight: '600' },
+  emptyText: { textAlign: 'center', padding: 20, color: COLORS.textSecondary },
+  newNoteBtn: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+  newNoteBtnText: { color: '#fff', fontWeight: '600' },
+  editorContainer: { flex: 1, backgroundColor: COLORS.surface, margin: 12, borderRadius: 12, padding: 12 },
+  titleInput: { fontSize: 18, fontWeight: '600', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 8, color: COLORS.text },
+  contentInput: { flex: 1, fontSize: 15, lineHeight: 22, color: COLORS.text, paddingVertical: 8 },
+  actions: { flexDirection: 'row', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border, alignItems: 'center' },
+  actionBtn: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  actionBtnPrimary: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  actionBtnDanger: { borderColor: '#fca5a5' },
+  actionBtnText: { fontSize: 16 },
+  footer: { paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border },
+  stats: { flexDirection: 'row', justifyContent: 'space-between' },
+  statText: { fontSize: 11, color: COLORS.textSecondary },
+  noteStatus: { fontSize: 11, marginTop: 4 },
 });
