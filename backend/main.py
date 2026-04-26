@@ -2,7 +2,9 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pathlib import Path
 from database import init_db, migrate_db, get_db
 from routes.auth_routes import router as auth_router
 from routes.note_routes import router as note_router
@@ -39,7 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers (must be before static mount to take priority)
 app.include_router(auth_router)
 app.include_router(note_router)
 app.include_router(sync_router)
@@ -49,3 +51,9 @@ app.include_router(admin_router)
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "sahabnote-api", "version": "1.0.0"}
+
+
+# Serve static files from the web/ directory (catch-all after API routes)
+web_dir = Path(__file__).parent.parent / "web"
+if web_dir.exists():
+    app.mount("/", StaticFiles(directory=str(web_dir), html=True), name="web")
