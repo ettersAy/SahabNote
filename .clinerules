@@ -87,3 +87,21 @@ Important instructions:
 - If you determine that a task would be handled more effectively using an existing MCP server, you are authorized to install it yourself or ask me to install it for you.
 - If, during this mission, you identify repetitive actions that could be automated with a Bash script for future tasks, let me know so I can plan and create one.
 - Likewise, if you have ideas for useful Laravel commands, automation tools, or even a new MCP server that could improve future workflows, share them with me. I will create dedicated tasks to implement those ideas.
+
+## Pre-Deploy Validation
+
+Before creating or approving any deploy-related PR, run the pre-deployment validation script:
+
+```bash
+python3 backend/scripts/pre_deploy_check.py --live
+```
+
+This ensures:
+- The backend API imports correctly
+- All tests pass
+- Static files serve correctly
+- Documentation is up to date with code
+- Environment variables are properly configured
+- The health endpoint responds as expected
+
+If the script exits with a non-zero status, investigate and fix the failures before proceeding with the deployment.
