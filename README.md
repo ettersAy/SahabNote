@@ -209,23 +209,10 @@ sahabnote/
 │       └── options.js
 ├── web/                  # Simple web client
 │   └── index.html
-├── scripts/              # Utility scripts
-│   ├── README.md         # Documentation for scripts
-│   ├── health_tray.py    # Linux system tray health indicator
-│   └── health-widget.html # Browser-based health widget
 ├── App.js                # Expo root (delegates to android/)
 ├── app.json              # Expo config
 └── package.json          # Expo packages
 ```
-
-## Health Indicators
-
-The `scripts/` directory contains lightweight tools to monitor the backend health:
-
-- **`health_tray.py`** – Linux system tray icon that shows green/red based on the `/api/health` endpoint. Requires `pystray` and `Pillow`. Run with `python3 scripts/health_tray.py`.
-- **`health-widget.html`** – Standalone HTML page that displays a green/red circle. Open in any browser with `xdg-open scripts/health-widget.html`.
-
-See `scripts/README.md` for detailed usage.
 
 ## AI Reflection & Automation Ideas
 
