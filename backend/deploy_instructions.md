@@ -84,6 +84,43 @@ No manual migration steps are needed.
 3. Register or login to get your sync key
 4. Start syncing!
 
+## Pre-Deploy Validation
+
+Before deploying to production, run the pre-deployment validation script to catch common issues:
+
+```bash
+python3 backend/scripts/pre_deploy_check.py
+```
+
+This script performs the following checks:
+
+| # | Check | Description |
+|---|-------|-------------|
+| 1 | **Module Import** | Verifies `main:app` imports without errors |
+| 2 | **Pytest Suite** | Runs all tests and reports failures |
+| 3 | **Live Server** | (requires `--live`) Starts uvicorn, verifies static files and API routes |
+| 4 | **Docs Freshness** | Scans for undocumented env vars, web files, and routes |
+| 5 | **Env Vars** | Checks `SAHABNOTE_SECRET` is not default, lists expected vars |
+| 6 | **Health Check** | (requires `--live`) Hits `/api/health` and validates response |
+
+### Usage
+
+```bash
+# Quick check (offline, no server needed)
+python3 backend/scripts/pre_deploy_check.py
+
+# Full check with live server validation
+python3 backend/scripts/pre_deploy_check.py --live
+
+# JSON output (useful for CI integration)
+python3 backend/scripts/pre_deploy_check.py --json
+
+# Skip slow tests
+python3 backend/scripts/pre_deploy_check.py --skip-tests --live
+```
+
+> The script returns **exit code 0** if all checks pass, or **exit code 1** if any check fails.
+
 ## Notes
 
 - The free tier spins down after 15 minutes of inactivity. The first request after inactivity may take 30-60 seconds to wake up.

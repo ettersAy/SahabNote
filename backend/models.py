@@ -79,3 +79,43 @@ class ApiResponse(BaseModel):
     data: Optional[dict] = None
     message: str = "OK"
     errors: Optional[dict] = None
+
+
+# --- Admin Models ---
+
+class AdminUserResponse(BaseModel):
+    id: int
+    username: str
+    sync_key_preview: str
+    note_count: int
+    is_admin: bool
+    created_at: str
+
+
+class AdminNotePreview(BaseModel):
+    id: int
+    client_id: str
+    title: str
+    content_preview: str
+    version: int
+    created_at: str
+    updated_at: str
+    deleted_at: Optional[str] = None
+
+
+class AdminStats(BaseModel):
+    total_users: int
+    total_notes: int
+    active_notes: int
+    notes_per_user_avg: float
+    admin_count: int
+
+
+class AdminAuditLog(BaseModel):
+    id: int
+    admin_user_id: int
+    action: str
+    target_user_id: Optional[int] = None
+    target_note_id: Optional[int] = None
+    details: Optional[str] = None
+    created_at: str

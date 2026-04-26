@@ -3,16 +3,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from database import init_db
+from database import init_db, migrate_db, get_db
 from routes.auth_routes import router as auth_router
 from routes.note_routes import router as note_router
 from routes.sync_routes import router as sync_router
+from routes.admin_routes import router as admin_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
+    # Apply migrations for existing databases
+    db = await get_db()
+    try:
+        await migrate_db(db)
+    finally:
+        await db.close()
     yield
     # Shutdown
 
@@ -36,6 +43,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(note_router)
 app.include_router(sync_router)
+app.include_router(admin_router)
 
 
 @app.get("/api/health")

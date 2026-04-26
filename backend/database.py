@@ -18,6 +18,38 @@ async def get_db():
     return db
 
 
+async def migrate_db(db):
+    """Apply schema migrations safely."""
+    # Check if is_admin column exists in users table
+    cursor = await db.execute("PRAGMA table_info(users)")
+    columns = {row[1] for row in await cursor.fetchall()}
+
+    if "is_admin" not in columns:
+        await db.execute(
+            "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
+        )
+
+    # Check if admin_audit_log table exists
+    cursor = await db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='admin_audit_log'"
+    )
+    if not await cursor.fetchone():
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS admin_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_user_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_user_id INTEGER,
+                target_note_id INTEGER,
+                details TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (admin_user_id) REFERENCES users(id)
+            )
+        """)
+
+    await db.commit()
+
+
 async def init_db():
     """Create tables if they don't exist."""
     db = await get_db()
@@ -28,6 +60,7 @@ async def init_db():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 sync_key TEXT UNIQUE NOT NULL,
+                is_admin INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -47,6 +80,17 @@ async def init_db():
 
             CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_user_client
                 ON notes(user_id, client_id);
+
+            CREATE TABLE IF NOT EXISTS admin_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_user_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_user_id INTEGER,
+                target_note_id INTEGER,
+                details TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (admin_user_id) REFERENCES users(id)
+            );
         """)
         await db.commit()
     finally:
