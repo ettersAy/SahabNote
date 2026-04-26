@@ -51,3 +51,12 @@ This is the single source of truth for SahabNote-specific config.
 ## Tested On
 - Expo Go SDK 54
 - Android (via Expo Go)
+
+--- 
+
+Important instructions:
+
+- Ensure compatibility and proper operation with all installed MCP servers.
+- If you determine that a task would be handled more effectively using an existing MCP server, you are authorized to install it yourself or ask me to install it for you.
+- If, during this mission, you identify repetitive actions that could be automated with a Bash script for future tasks, let me know so I can plan and create one.
+- Likewise, if you have ideas for useful Laravel commands, automation tools, or even a new MCP server that could improve future workflows, share them with me. I will create dedicated tasks to implement those ideas.

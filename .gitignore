@@ -11,3 +11,4 @@ backend/data/
 desktop/__pycache__/
 .DS_Store
 *.log
+.aider*
