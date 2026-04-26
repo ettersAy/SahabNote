@@ -81,12 +81,15 @@ export default function App() {
 
     const savedSettings = await getSettings();
     setSettingsData(savedSettings);
-    setSetupUrl(savedSettings.server_url || 'http://localhost:8000');
+    const defaultUrl = 'https://sahabnote.onrender.com';
+    const url = savedSettings.server_url || defaultUrl;
+    setSetupUrl(url);
     setSetupToken(savedSettings.auth_token || '');
 
-    syncClient.current.setServer(savedSettings.server_url || '');
+    syncClient.current.setServer(url);
     syncClient.current.setAuthToken(savedSettings.auth_token || '');
 
+    console.log('SahabNote: Using server URL:', url);
     checkConnection();
   };
 
@@ -298,8 +301,8 @@ export default function App() {
       return;
     }
     try {
-      const client = new SyncClient(setupUrl);
-      const resp = await client.request('POST', '/api/auth/register', {
+      console.log('SahabNote: Registering with URL:', setupUrl);
+      const resp = await syncClient.current.request('POST', '/api/auth/register', {
         username: registerUser,
         password: registerPass,
       });
@@ -309,7 +312,6 @@ export default function App() {
         Alert.alert('Registered!', `Sync key: ${resp.data.sync_key.slice(0, 20)}...\nSaved to settings.`);
         await saveSettings({ server_url: setupUrl, auth_token: resp.data.access_token });
         setSettingsData({ server_url: setupUrl, auth_token: resp.data.access_token });
-        syncClient.current.setServer(setupUrl);
         syncClient.current.setAuthToken(resp.data.access_token);
       } else {
         Alert.alert('Error', resp.message || 'Registration failed');
@@ -325,8 +327,8 @@ export default function App() {
       return;
     }
     try {
-      const client = new SyncClient(setupUrl);
-      const resp = await client.request('POST', '/api/auth/login', {
+      console.log('SahabNote: Logging in with URL:', setupUrl);
+      const resp = await syncClient.current.request('POST', '/api/auth/login', {
         username: registerUser,
         password: registerPass,
       });
@@ -335,7 +337,6 @@ export default function App() {
         Alert.alert('Logged in!', `Sync key: ${resp.data.sync_key.slice(0, 20)}...`);
         await saveSettings({ server_url: setupUrl, auth_token: resp.data.access_token });
         setSettingsData({ server_url: setupUrl, auth_token: resp.data.access_token });
-        syncClient.current.setServer(setupUrl);
         syncClient.current.setAuthToken(resp.data.access_token);
       } else {
         Alert.alert('Error', resp.message || 'Login failed');
