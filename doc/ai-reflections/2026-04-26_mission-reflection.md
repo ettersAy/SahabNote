@@ -70,3 +70,107 @@ have their dependencies listed in `backend/requirements.txt` or a separate
 centralize server URLs and other settings.                                                          
 7. **Encourage end-to-end testing** – Suggest adding tests for the web client and Chrome extension  
 in future missions.                             
+---
+
+# Addendum: Admin Interface Mission (later same day)
+
+## Discovery & Investigation Process
+
+- **Effectiveness**: Good initial scan of all backend files. I read every relevant file before starting.
+- **Critical gap**: I did NOT check how files are served in production. I assumed `web/` files were somehow served by FastAPI, but never verified. This caused the biggest failure.
+- **Lesson**: Before adding a static file (like `admin.html`), ALWAYS verify how existing static files (`index.html`) are served. Test the actual URL with a request, don't assume.
+- **Lesson**: After making a change, verify it works end-to-end with a live server before declaring done.
+
+## Biggest Mistakes & Root Causes
+
+### Mistake 1: Not testing the static file mount before pushing
+- I wrote `app.mount("/", StaticFiles(...))` assuming it works because TestClient showed it did.
+- TestClient handles mounts differently than uvicorn — it worked in tests but failed in production.
+- **Fix**: I should have started a live uvicorn server and tested with curl/Playwright before pushing.
+- **Root cause**: Over-reliance on TestClient. It doesn't perfectly simulate uvicorn behavior with root mounts.
+
+### Mistake 2: Docs telling user to use Render Shell (free tier doesn't have it)
+- I wrote "use the Shell tab" not knowing Render free tier lacks Shell access.
+- **Fix**: Added auto-seeding from env vars (`ADMIN_USERNAME`/`ADMIN_PASSWORD`) so no Shell needed.
+- **Root cause**: Making assumptions about third-party platform capabilities. Should have checked Render free tier limitations first.
+
+### Mistake 3: Multiple PRs in wrong order
+- Code fix (#14), docs update (#15), env seeding (#16) — all on separate branches, need to be merged sequentially.
+- Worktree limitations (detached HEAD, branches locked to parent repo) caused confusion.
+- **Root cause**: Git worktree restrictions made it harder to keep branches clean. Changes got scattered across commits.
+
+### Mistake 4: Documentation updates were an afterthought
+- The deploy instructions and `.clinerules` should have been updated as part of the original implementation, not as a separate PR afterward.
+- **Root cause**: I focused on the functional code and forgot docs until the user pointed it out.
+
+## Workflow Blockers
+
+### Shell tool kills background processes
+- Every time I ran `uvicorn main:app &` with `&`, the shell tool waited for the process and timed out.
+- The background process was killed when the tool command finished.
+- **Workaround**: Use Python's `subprocess.Popen` to start the server within the same Python script that tests it, or use `nohup` + `disown`.
+- **Best practice**: Write a self-contained Python test script that starts the server, tests everything, then stops it — all in one invocation. This avoids the background process problem entirely.
+
+### Git worktree restrictions
+- Cannot checkout `main` because it's in use by the parent repo.
+- Branches are locked — can't switch to them.
+- Solution: Push from detached HEAD to named remotes: `git push origin HEAD:refs/heads/branch-name`
+
+### No way to verify `app.mount` behavior without uvicorn
+- `TestClient` doesn't accurately simulate `app.mount("/", StaticFiles(...))`.
+- The catch-all route approach (`@app.get("/{full_path:path}")`) works reliably across both TestClient and uvicorn.
+- **Takeaway**: Never use `app.mount("/", ...)` at root. Use a catch-all route instead.
+
+## Automation & Reuse Opportunities
+
+### 1. Self-contained test script template
+- **Pattern**: Every backend change needs live server testing. The current workflow (start server → test → stop) is fragile.
+- **Solution**: Create a reusable `scripts/test_live.py` that:
+  - Starts uvicorn on a random port
+  - Runs tests against the live server
+  - Stops the server
+  - Reports results
+- Already partially exists as the patterns developed in this mission.
+
+### 2. Pre-deployment checklist
+- **Pattern**: Changes like "add a new route" or "serve a static file" need verification that the file is actually accessible.
+- **Solution**: Add a `scripts/pre_deploy_check.sh` that checks:
+  - Can the app import all modules without error?
+  - Do all existing tests pass?
+  - Is `admin.html` accessible?
+  - Does `/api/health` respond correctly?
+
+### 3. Render deployment documentation template
+- **Pattern**: Every feature that adds a new config, environment variable, or static file needs corresponding Render documentation.
+- **Solution**: Add a section to `scripts/README.md` or create `doc/render_checklist.md` that lists all Render-specific configuration points.
+
+### 4. Worktree-aware git workflow
+- **Pattern**: Working in git worktrees with detached HEAD causes confusion.
+- **Solution**: Document the exact workflow in `.clinerules`:
+  ```bash
+  # To push changes:
+  git push origin HEAD:refs/heads/branch-name
+  
+  # To create a PR from detached HEAD:
+  # (can't use gh CLI easily, use GitHub API via MCP)
+  ```
+
+## Tooling Gaps
+
+### Missing: Live integration test runner
+- `pytest` tests don't test the actually running server with static files.
+- Need a test that starts uvicorn, makes real HTTP requests, and checks responses.
+- This would have caught the `app.mount` issue immediately.
+
+### Missing: Render-specific environment documentation
+- Render free tier limitations should be documented:
+  - No Shell access
+  - Ephemeral filesystem (SQLite data lost on restart)
+  - Auto-sleep after 15 min inactivity
+  - 512 MB RAM, 0.1 CPU
+
+## Permission & Environment Issues
+
+- Render free tier lacks Shell — alternative methods needed for DB inspection (env vars, API endpoints)
+- `seed_admin_from_env()` is the right approach for free tier
+- For DB management: add admin API endpoints to query/inspect data rather than requiring Shell
