@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Cline for this project.
 It complements the global `/home/AyoubEtters/.clinerules` with project-specific details.
-See also `CLINE.md` at the project root for the extended human-readable reference.
+This is the single source of truth for SahabNote-specific config.
 
 ## Tech Stack
 - **Mobile**: Expo React Native (SDK 54)
