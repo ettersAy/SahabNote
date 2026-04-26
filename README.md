@@ -56,7 +56,15 @@ python app.py
 
 ```bash
 cd sahabnote  # or current root
-npx expo start
+npx expo start           # Standard (uses port 8081)
+npm run start:worktree   # Worktree-safe (uses port 8082, auto-clears cache)
+```
+
+**Dev Utilities:**
+```bash
+npm run versions   # Print all key package versions (expo, RN, react, etc.)
+npm run doctor     # Run Expo config validation (expo-doctor)
+npm run validate   # Full validation: versions + config + doctor
 ```
 
 ### 4. Load the Chrome Extension
