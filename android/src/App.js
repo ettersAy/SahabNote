@@ -407,6 +407,7 @@ export default function App() {
           }
           horizontal={false}
           style={styles.noteList}
+          keyboardShouldPersistTaps="handled"
         />
         <TouchableOpacity style={styles.newNoteBtn} onPress={createNewNote}>
           <Text style={styles.newNoteBtnText}>+ New Note</Text>
@@ -415,7 +416,7 @@ export default function App() {
 
       {/* Editor */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.editorContainer}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
