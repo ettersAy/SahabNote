@@ -41,6 +41,42 @@ Click **Create Web Service**. Render will build and deploy your app. The first d
 
 Once deployed, Render will give you a URL like `https://sahabnote-backend.onrender.com`. Use this URL in the Chrome extension settings.
 
+## Admin Panel
+
+The admin panel is accessible at `/admin.html` (e.g., `https://sahabnote-backend.onrender.com/admin.html`).
+
+### Making a User Admin
+
+After deployment, promote a user to admin via the CLI:
+
+```bash
+cd backend && python3 run.py --seed-admin <username>
+```
+
+This sets `is_admin = 1` in the `users` table. The user can then log in at `/admin.html` with their regular credentials.
+
+### Admin API Endpoints
+
+All admin endpoints require a valid JWT token from a user with `is_admin = true`:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/admin/stats` | Dashboard stats (total users, notes, avg) |
+| `GET` | `/api/admin/users` | List all users (masked sync keys) |
+| `GET` | `/api/admin/users/{id}/notes` | List notes for a user |
+| `GET` | `/api/admin/users/{id}/notes/{nid}` | Full note content |
+| `DELETE` | `/api/admin/users/{id}/notes/{nid}` | Soft-delete (or `?hard_delete=true` for hard-delete) |
+| `POST` | `/api/admin/users/{id}/reset-sync-key` | Reset a user's sync key |
+| `GET` | `/api/admin/audit-log` | View admin action audit log |
+
+### Database Migrations
+
+On startup, the server automatically applies schema migrations:
+- Adds `is_admin` column to existing `users` table
+- Creates `admin_audit_log` table if it doesn't exist
+
+No manual migration steps are needed.
+
 ## Updating the Chrome Extension
 
 1. Open the extension options page
