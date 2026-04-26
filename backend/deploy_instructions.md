@@ -25,7 +25,7 @@ Go to [render.com](https://render.com) and sign up using your GitHub account.
 - **Region**: Choose the closest to you
 - **Branch**: `main` (or your default branch)
 - **Runtime**: `Python 3`
-- **Build Command**: `pip install -r backend/requirements.txt`
+- **Build Command**: `pip install --only-binary :all: -r backend/requirements.txt`
 - **Start Command**: `cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
 - **Plan**: Free
 
