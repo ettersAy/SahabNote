@@ -38,6 +38,14 @@ app.include_router(note_router)
 app.include_router(sync_router)
 
 
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to SahabNote API",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "sahabnote-api", "version": "1.0.0"}
