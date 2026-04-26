@@ -43,14 +43,41 @@ This is the single source of truth for SahabNote-specific config.
 - To create a new branch: `git fetch origin main && git checkout -b <name> origin/main`
 - Cannot `git checkout main` from worktree
 
-## Backend
+## Deployment
+
+### Production Backend (Render)
+- **URL**: https://sahabnote.onrender.com
+- **Health Check**: https://sahabnote.onrender.com/api/health
+- **API Docs**: https://sahabnote.onrender.com/docs
+- The free tier spins down after 15 min of inactivity; first request may take 30-60s to wake up.
+- Data is stored in SQLite on Render's ephemeral filesystem — for production use with persistent data, switch to PostgreSQL.
+
+### Local Development Backend
 ```bash
-./start_backend.sh   # Installs deps and starts FastAPI server
+./start_backend.sh   # Installs deps and starts FastAPI server on http://localhost:8000
 ```
 
 ## Tested On
 - Expo Go SDK 54
 - Android (via Expo Go)
+- Web (Chrome)
+
+## Client Configuration
+
+All clients (Chrome Extension, Android app, Desktop) need two settings:
+1. **Server URL**: For production use `https://sahabnote.onrender.com`; for local dev use `http://localhost:8000` (or your LAN IP for testing on phone)
+2. **Auth Token / Sync Key**: Use the sync key obtained from registering/logging in via any client (shared across all clients for the same user account)
+
+### Sync Key for user "etters" (production)
+```
+sn_f9480efa28b70b6bb18885ea09f82c93ed09a6c7d7e6a3c7
+```
+Register a new user on any client to get a new sync key.
+
+## Health Monitoring Scripts
+- `scripts/health_tray.py` — Linux system tray indicator that pings `https://sahabnote.onrender.com/api/health`
+- `scripts/health-widget.html` — Browser-based health widget (open in any browser) that monitors the same endpoint
+- Both check every 30 seconds and show green (online) / red (offline) status
 
 --- 
 
