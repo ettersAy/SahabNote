@@ -141,6 +141,20 @@ Each client allows configuration of:
 8. **Delete**: Delete a note. It's soft-deleted locally, then synced as deleted.
 9. **Copy/Clear**: Copy copies content to clipboard. Clear empties the current note.
 
+## Chrome Extension: Inline Event Handlers & CSP
+
+The Chrome extension uses **Manifest V3**, which enforces a strict default Content Security Policy (`script-src 'self'`). This means:
+
+- ❌ **Inline event handlers are NOT allowed**: `onclick="..."`, `onchange="..."`, `oninput="..."`, `javascript:` URLs
+- ✅ **Use `addEventListener`** in separate `.js` files instead
+- ✅ **Use event delegation** for dynamically generated DOM elements (e.g., `e.target.closest('.selector')` on a parent container)
+
+To check for violations before loading the extension:
+```bash
+grep -rn 'onclick=\|onchange=\|oninput=\|onsubmit=\|javascript:' chrome-extension/ --include='*.html'
+```
+This should return **no matches** in a compliant codebase.
+
 ## Known Limitations
 
 1. **No real-time sync**: Uses manual "Sync Now" button or periodic sync (Chrome extension: every 5 min).
