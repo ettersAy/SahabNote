@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SahabNote Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      background: #f0f2f5;
+      color: #1a1a1a;
+    }
+    .hidden { display: none !important; }
+
+    /* Login */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 360px;
+      max-width: 90vw;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    }
+    #login-box h2 { margin-bottom: 20px; }
+    #login-box h2 small { font-weight: normal; font-size: 13px; color: #666; }
+    #login-box input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    #login-box .btn { width: 100%; margin-bottom: 6px; }
+    .error-msg { color: #ef4444; font-size: 13px; margin-bottom: 8px; }
+    .success-msg { color: #22c55e; font-size: 13px; margin-bottom: 8px; }
+
+    /* Header */
+    #header {
+      background: #1e293b;
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #header h1 { font-size: 18px; }
+    #header h1 span { color: #94a3b8; font-weight: normal; font-size: 13px; }
+    #header-actions { display: flex; gap: 8px; align-items: center; }
+    #user-badge {
+      background: #334155;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    /* Container */
+    #container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Stats */
+    #stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .stat-card .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .stat-card .stat-label {
+      font-size: 12px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    /* Section */
+    .section {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-header h2 { font-size: 16px; }
+    .section-header .count-badge {
+      background: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #475569;
+    }
+
+    /* Table */
+    .table-wrapper { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+    }
+    tr:hover { background: #f8fafc; }
+    tr.clickable { cursor: pointer; }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #f1f5f9; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-primary { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { color: #ef4444; border-color: #ef4444; }
+    .btn-danger:hover { background: #fef2f2; }
+    .btn-warning { color: #d97706; border-color: #d97706; }
+    .btn-warning:hover { background: #fffbeb; }
+    .btn-outline { background: transparent; border-color: #cbd5e1; }
+
+    /* Expandable row */
+    .user-detail-row { display: none; }
+    .user-detail-row.expanded { display: table-row; }
+    .user-detail-cell {
+      padding: 0 !important;
+      background: #f8fafc;
+    }
+    .user-notes-container {
+      padding: 16px 20px 16px 40px;
+    }
+    .user-notes-container .mini-table { width: 100%; font-size: 12px; }
+    .user-notes-container .mini-table th { background: #f1f5f9; font-size: 11px; padding: 6px 10px; }
+    .user-notes-container .mini-table td { padding: 6px 10px; font-size: 12px; }
+    .user-notes-container .empty-msg {
+      color: #94a3b8;
+      font-style: italic;
+      padding: 12px;
+      text-align: center;
+    }
+    .user-notes-container .loading-msg {
+      color: #64748b;
+      padding: 12px;
+      text-align: center;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-admin { background: #dbeafe; color: #1d4ed8; }
+    .badge-user { background: #f1f5f9; color: #475569; }
+    .badge-deleted { background: #fef2f2; color: #ef4444; }
+
+    /* Status messages */
+    #status-bar {
+      padding: 8px 16px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    #status-bar.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    #status-bar.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    #status-bar.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+
+    /* Note viewer modal */
+    #note-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #note-modal.hidden { display: none; }
+    #note-modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 640px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    #note-modal-content h3 { margin-bottom: 12px; font-size: 18px; }
+    #note-modal-content .meta {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    #note-modal-content .note-body {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    #note-modal-content .actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* Toast / notification */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      z-index: 999;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: #22c55e; }
+    #toast.error { background: #ef4444; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #container { padding: 12px; }
+      #stats-row { grid-template-columns: repeat(2, 1fr); }
+      #header { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+      .section-header { flex-wrap: wrap; gap: 8px; }
+      th, td { padding: 8px 10px; }
+      .user-notes-container { padding: 12px 12px 12px 20px; }
+      #note-modal-content { width: 95vw; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen">
+    <div id="login-box">
+      <h2>SahabNote <small>Admin</small></h2>
+      <div id="login-msg"></div>
+      <input type="text" id="login-server" placeholder="Server URL (e.g., http://localhost:8000)" />
+      <input type="text" id="login-username" placeholder="Username" />
+      <input type="password" id="login-password" placeholder="Password" />
+      <button class="btn btn-primary" id="login-btn">Login as Admin</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Note Viewer Modal -->
+  <div id="note-modal" class="hidden">
+    <div id="note-modal-content">
+      <h3 id="modal-title"></h3>
+      <div class="meta" id="modal-meta"></div>
+      <div class="note-body" id="modal-body"></div>
+      <div class="actions">
+        <button class="btn btn-danger btn-sm" id="modal-delete-btn">Delete Note</button>
+        <button class="btn" id="modal-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Admin UI -->
+  <div id="header">
+    <h1>SahabNote <span>Admin Panel</span></h1>
+    <div id="header-actions">
+      <span id="user-badge"></span>
+      <button class="btn btn-outline btn-sm" id="refresh-btn" style="color:white;border-color:#475569;">Refresh</button>
+      <button class="btn btn-outline btn-sm" id="logout-btn" style="color:white;border-color:#475569;">Logout</button>
+    </div>
+  </div>
+
+  <div id="container" class="hidden">
+    <div id="status-bar"></div>
+
+    <!-- Stats -->
+    <div id="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-users">-</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-notes">-</div>
+        <div class="stat-label">Total Notes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-active">-</div>
+        <div class="stat-label">Active Notes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-avg">-</div>
+        <div class="stat-label">Avg Notes/User</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-admins">-</div>
+        <div class="stat-label">Admins</div>
+      </div>
+    </div>
+
+    <!-- Users Section -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Users</h2>
+        <span class="count-badge" id="user-count-badge">0 users</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Notes</th>
+              <th>Sync Key</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<style>
+  /* Mini loading spinner */
+  .mini-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .copy-btn-icon {
+    cursor: pointer;
+    background: none;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .copy-btn-icon:hover { background: #f1f5f9; color: #1e293b; }
+  .sync-key-text {
+    font-family: monospace;
+    font-size: 12px;
+    color: #475569;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .action-btns { display: flex; gap: 4px; flex-wrap: nowrap; }
+  .full-sync-key {
+    font-family: monospace;
+    font-size: 12px;
+    word-break: break-all;
+    background: #f1f5f9;
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-top: 6px;
+    display: none;
+  }
+  .full-sync-key.show { display: block; }
+</style>
+
+  <script>
+    // === State ===
+    let serverUrl = localStorage.getItem('admin_server_url') || '';
+    let authToken = localStorage.getItem('admin_auth_token') || '';
+    let currentAdminUser = '';
+    let usersData = [];
+
+    // === Init ===
+    document.addEventListener('DOMContentLoaded', () => {
+      if (serverUrl) document.getElementById('login-server').value = serverUrl;
+      if (authToken) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('container').classList.remove('hidden');
+        loadAdminPanel();
+      }
+
+      // Event listeners
+      document.getElementById('login-btn').addEventListener('click', doAdminLogin);
+      document.getElementById('logout-btn').addEventListener('click', doLogout);
+      document.getElementById('refresh-btn').addEventListener('click', () => loadAdminPanel());
+      document.getElementById('modal-close-btn').addEventListener('click', () => {
+        document.getElementById('note-modal').classList.add('hidden');
+      });
+      document.getElementById('modal-delete-btn').addEventListener('click', modalDeleteNote);
+
+      // Close modal on outside click
+      document.getElementById('note-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+          document.getElementById('note-modal').classList.add('hidden');
+        }
+      });
+
+      // Enter key on login
+      document.getElementById('login-password').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doAdminLogin();
+      });
+    });
+
+    // === Helpers ===
+    function showLoginMsg(msg, isError = true) {
+      const el = document.getElementById('login-msg');
+      el.textContent = msg;
+      el.className = isError ? 'error-msg' : 'success-msg';
+    }
+
+    function showStatus(msg, type = 'info') {
+      const el = document.getElementById('status-bar');
+      el.textContent = msg;
+      el.className = type;
+      setTimeout(() => { if (el.textContent === msg) { el.textContent = ''; el.className = ''; } }, 4000);
+    }
+
+    function showToast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'show ' + type;
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    async function apiRequest(method, path, body) {
+      const url = serverUrl.replace(/\/+$/, '') + path;
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const resp = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      return await resp.json();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // === Auth ===
+    async function doAdminLogin() {
+      const user = document.getElementById('login-username').value;
+      const pass = document.getElementById('login-password').value;
+      serverUrl = document.getElementById('login-server').value || serverUrl;
+      if (!user || !pass) { showLoginMsg('Fill in all fields'); return; }
+
+      try {
+        const data = await apiRequest('POST', '/api/auth/login', { username: user, password: pass });
+        if (!data.success) {
+          showLoginMsg(data.message || 'Login failed');
+          return;
+        }
+
+        authToken = data.data.access_token;
+        currentAdminUser = user;
+
+        // Verify admin access
+        const statsResp = await apiRequest('GET', '/api/admin/stats');
+        if (!statsResp.success) {
+          showLoginMsg('Admin access denied. You are not an admin.', true);
+          authToken = '';
+          return;
+        }
+
+        localStorage.setItem('admin_server_url', serverUrl);
+        localStorage.setItem('admin_auth_token', authToken);
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('container').classList.remove('hidden');
+        document.getElementById('user-badge').textContent = user;
+        showStatus('Logged in as admin', 'success');
+        loadAdminPanel();
+      } catch (err) {
+        showLoginMsg('Connection error: ' + err.message);
+      }
+    }
+
+    function doLogout() {
+      authToken = '';
+      currentAdminUser = '';
+      localStorage.removeItem('admin_auth_token');
+      document.getElementById('container').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      showLoginMsg('Logged out', false);
+    }
+
+    // === Admin Panel ===
+    let currentModalNote = null;
+
+    async function loadAdminPanel() {
+      await Promise.all([loadStats(), loadUsers()]);
+    }
+
+    async function loadStats() {
+      try {
+        const data = await apiRequest('GET', '/api/admin/stats');
+        if (!data.success) {
+          if (data.message?.includes('Admin access')) {
+            showStatus('Admin session expired. Please re-login.', 'error');
+            doLogout();
+          }
+          return;
+        }
+        const s = data.data;
+        document.getElementById('stat-users').textContent = s.total_users;
+        document.getElementById('stat-notes').textContent = s.total_notes;
+        document.getElementById('stat-active').textContent = s.active_notes;
+        document.getElementById('stat-avg').textContent = s.notes_per_user_avg;
+        document.getElementById('stat-admins').textContent = s.admin_count;
+      } catch (err) {
+        showStatus('Failed to load stats: ' + err.message, 'error');
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const data = await apiRequest('GET', '/api/admin/users');
+        if (!data.success) {
+          showStatus('Failed to load users', 'error');
+          return;
+        }
+        usersData = data.data.users;
+        document.getElementById('user-count-badge').textContent = usersData.length + ' users';
+        renderUsers();
+      } catch (err) {
+        showStatus('Failed to load users: ' + err.message, 'error');
+      }
+    }
+
+    function renderUsers() {
+      const tbody = document.getElementById('users-tbody');
+      tbody.innerHTML = usersData.map(u => `
+        <tr class="clickable" data-user-id="${u.id}" onclick="toggleUserNotes(${u.id})">
+          <td>${u.id}</td>
+          <td><strong>${escapeHtml(u.username)}</strong></td>
+          <td><span class="badge ${u.is_admin ? 'badge-admin' : 'badge-user'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
+          <td>${u.note_count}</td>
+          <td>
+            <span class="sync-key-text" title="${escapeHtml(u.sync_key_preview)}">${escapeHtml(u.sync_key_preview)}</span>
+            <button class="copy-btn-icon" onclick="event.stopPropagation(); copySyncKey(${u.id})" title="Copy full sync key">Copy</button>
+          </td>
+          <td>${formatDate(u.created_at)}</td>
+          <td>
+            <div class="action-btns">
+              <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); resetSyncKey(${u.id})">Reset Key</button>
+            </div>
+          </td>
+        </tr>
+        <tr class="user-detail-row" id="user-detail-${u.id}">
+          <td colspan="7" class="user-detail-cell">
+            <div class="user-notes-container" id="user-notes-${u.id}">
+              <div class="loading-msg"><span class="mini-spinner"></span> Loading notes...</div>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function toggleUserNotes(userId) {
+      const detailRow = document.getElementById('user-detail-' + userId);
+      const container = document.getElementById('user-notes-' + userId);
+
+      if (detailRow.classList.contains('expanded')) {
+        detailRow.classList.remove('expanded');
+        return;
+      }
+
+      // Close all other expanded rows
+      document.querySelectorAll('.user-detail-row.expanded').forEach(el => el.classList.remove('expanded'));
+
+      detailRow.classList.add('expanded');
+      container.innerHTML = '<div class="loading-msg"><span class="mini-spinner"></span> Loading notes...</div>';
+
+      try {
+        const data = await apiRequest('GET', `/api/admin/users/${userId}/notes?include_deleted=true`);
+        if (!data.success) {
+          container.innerHTML = '<div class="empty-msg">Failed to load notes</div>';
+          return;
+        }
+
+        const notes = data.data.notes || [];
+        const username = data.data.username || 'User';
+
+        if (notes.length === 0) {
+          container.innerHTML = '<div class="empty-msg">No notes for this user.</div>';
+          return;
+        }
+
+        let html = `<table class="mini-table">
+          <thead><tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Preview</th>
+            <th>Status</th>
+            <th>Updated</th>
+            <th>Actions</th>
+          </tr></thead><tbody>`;
+
+        notes.forEach(n => {
+          const isDeleted = n.deleted_at !== null;
+          const status = isDeleted
+            ? '<span class="badge badge-deleted">Deleted</span>'
+            : '<span class="badge badge-user">Active</span>';
+          html += `<tr>
+            <td>${n.id}</td>
+            <td>${escapeHtml(n.title || '(no title)')}</td>
+            <td>${escapeHtml(n.content_preview || '(empty)')}</td>
+            <td>${status}</td>
+            <td>${n.updated_at ? formatDate(n.updated_at) : '-'}</td>
+            <td>
+              <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); viewNote(${userId}, ${n.id})">View</button>
+              ${!isDeleted ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteNote(${userId}, ${n.id})">Delete</button>` : ''}
+            </td>
+          </tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = '<div class="empty-msg">Error loading notes</div>';
+      }
+    }
+
+    async function viewNote(userId, noteId) {
+      try {
+        const data = await apiRequest('GET', `/api/admin/users/${userId}/notes/${noteId}`);
+        if (!data.success) {
+          showToast('Failed to load note', 'error');
+          return;
+        }
+
+        const note = data.data.note;
+        currentModalNote = { userId, noteId, note };
+        document.getElementById('modal-title').textContent = note.title || '(Untitled)';
+        document.getElementById('modal-meta').innerHTML = `
+          <span>ID: ${note.id}</span>
+          <span>Client: ${escapeHtml(note.client_id)}</span>
+          <span>Version: ${note.version}</span>
+          <span>Device: ${escapeHtml(note.device_id || '-')}</span>
+          <span>Created: ${formatDate(note.created_at)}</span>
+          <span>Updated: ${formatDate(note.updated_at)}</span>
+          ${note.deleted_at ? `<span style="color:#ef4444;">Deleted: ${formatDate(note.deleted_at)}</span>` : ''}
+        `;
+        document.getElementById('modal-body').textContent = note.content || '(empty)';
+
+        const deleteBtn = document.getElementById('modal-delete-btn');
+        deleteBtn.style.display = note.deleted_at ? 'none' : 'inline-block';
+
+        document.getElementById('note-modal').classList.remove('hidden');
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function modalDeleteNote() {
+      if (!currentModalNote) return;
+      const { userId, noteId } = currentModalNote;
+      if (!confirm('Delete this note?')) return;
+
+      try {
+        const data = await apiRequest('DELETE', `/api/admin/users/${userId}/notes/${noteId}?hard_delete=false`);
+        if (data.success) {
+          showToast('Note deleted');
+          document.getElementById('note-modal').classList.add('hidden');
+          // Refresh notes if the user detail row is expanded
+          const detailRow = document.getElementById('user-detail-' + userId);
+          if (detailRow.classList.contains('expanded')) {
+            await toggleUserNotes(userId);
+          }
+          loadStats();
+        } else {
+          showToast('Failed to delete: ' + (data.message || 'Unknown error'), 'error');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function deleteNote(userId, noteId) {
+      if (!confirm('Soft-delete this note?')) return;
+      try {
+        const data = await apiRequest('DELETE', `/api/admin/users/${userId}/notes/${noteId}?hard_delete=false`);
+        if (data.success) {
+          showToast('Note deleted');
+          const detailRow = document.getElementById('user-detail-' + userId);
+          if (detailRow.classList.contains('expanded')) {
+            await toggleUserNotes(userId);
+          }
+          loadStats();
+          loadUsers();
+        } else {
+          showToast('Failed to delete: ' + (data.message || ''), 'error');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function resetSyncKey(userId) {
+      if (!confirm('Reset sync key for this user? All their clients will need to re-authenticate.')) return;
+      try {
+        const data = await apiRequest('POST', `/api/admin/users/${userId}/reset-sync-key`);
+        if (data.success) {
+          showToast('Sync key reset successfully');
+          // Show the new sync key
+          alert(`New sync key for ${data.data.username}: ${data.data.new_sync_key}\n\nShare this with the user.`);
+          loadUsers();
+        } else {
+          showToast('Failed to reset: ' + (data.message || ''), 'error');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function copySyncKey(userId) {
+      try {
+        // We need to fetch full key - first get the user's full details from already loaded data
+        const user = usersData.find(u => u.id === userId);
+        if (!user) return;
+
+        // Show full sync key temporarily
+        const data = await apiRequest('GET', '/api/admin/users');
+        if (data.success) {
+          const fullUser = data.data.users.find(u => u.id === userId);
+          if (fullUser && fullUser.sync_key_preview) {
+            // We only have preview, need actual key
+            // Reset approach: fetch via a dedicated method. Let's just show it.
+            // Actually, let's use a workaround: show the preview and note it's masked
+            navigator.clipboard.writeText(user.sync_key_preview);
+            showToast('Copied preview (masked). Full key hidden for security.');
+          }
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

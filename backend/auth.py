@@ -78,3 +78,27 @@ async def get_current_user_id(
         )
     finally:
         await db.close()
+
+
+async def get_current_admin_id(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> int:
+    """Extract user_id from JWT token or sync_key and verify admin status."""
+    user_id = await get_current_user_id(credentials)
+
+    from database import get_db
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT is_admin FROM users WHERE id = ?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        if not row or not row["is_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required",
+            )
+        return user_id
+    finally:
+        await db.close()
