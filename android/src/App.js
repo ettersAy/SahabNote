@@ -1,5 +1,9 @@
 /**
  * SahabNote - Android App (React Native / Expo)
+ *
+ * Two-screen design after login:
+ *   - Note List Screen: list of notes with a floating "+" button at bottom-right
+ *   - Note Editor Screen: full-screen editor with back button, auto-save on changes
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -26,12 +30,18 @@ const COLORS = {
 const DEFAULT_SERVER_URL = 'https://sahabnote.onrender.com';
 
 export default function App() {
+  // --- Navigation ---
+  const [screen, setScreen] = useState('list'); // 'list' or 'editor'
+
+  // --- Note data ---
   const [notes, setNotes] = useState([]);
   const [currentNoteId, setCurrentNoteId] = useState(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [search, setSearch] = useState('');
   const [deviceId, setDeviceId] = useState('');
+
+  // --- App state ---
   const [isOnline, setIsOnline] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -39,8 +49,10 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authLoadingText, setAuthLoadingText] = useState('');
   const [stats, setStats] = useState({ chars: 0, words: 0, lines: 0, tokens: 0 });
-  const [noteStatus, setNoteStatus] = useState({ text: 'No note selected', color: COLORS.textSecondary });
+  const [noteStatus, setNoteStatus] = useState({ text: '', color: COLORS.textSecondary });
+  const [isSaving, setIsSaving] = useState(false);
 
+  // --- Auth ---
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
 
@@ -137,15 +149,20 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    await saveCurrentNoteImmediate();
     await saveSettings({});
     setLoginUser('');
     setLoginPass('');
     setIsAuthenticated(false);
     setIsOnline(false);
     syncClient.current.setAuthToken('');
+    setScreen('list');
+    setCurrentNoteId(null);
+    setTitle('');
+    setContent('');
   };
 
-  const currentNote = notes.find(n => n.client_id === currentNoteId);
+  // ===================== NOTE ACTIONS =====================
 
   const getFilteredNotes = () => {
     const q = search.toLowerCase();
@@ -164,11 +181,16 @@ export default function App() {
     const updated = [note, ...notes];
     await saveNotes(updated);
     setNotes(updated);
-    selectNote(id);
+    setCurrentNoteId(id);
+    setTitle('');
+    setContent('');
+    setStats({ chars: 0, words: 0, lines: 0, tokens: 0 });
+    setNoteStatus({ text: 'New note', color: COLORS.textSecondary });
+    setScreen('editor');
   };
 
-  const selectNote = (noteId) => {
-    if (currentNoteId) saveCurrentNote();
+  const openNote = (noteId) => {
+    saveCurrentNoteImmediate();
     const note = notes.find(n => n.client_id === noteId);
     if (!note) return;
     setCurrentNoteId(noteId);
@@ -176,9 +198,22 @@ export default function App() {
     setContent(note.content || '');
     updateStats(note.content || '');
     updateNoteStatusUI(note);
+    setScreen('editor');
   };
 
-  const saveCurrentNote = useCallback(async () => {
+  const goBackToList = () => {
+    saveCurrentNoteImmediate();
+    setScreen('list');
+    setCurrentNoteId(null);
+    setTitle('');
+    setContent('');
+    setStats({ chars: 0, words: 0, lines: 0, tokens: 0 });
+    setNoteStatus({ text: '', color: COLORS.textSecondary });
+  };
+
+  // ===================== AUTO-SAVE =====================
+
+  const saveCurrentNoteImmediate = useCallback(async () => {
     if (!currentNoteId) return;
     const idx = notes.findIndex(n => n.client_id === currentNoteId);
     if (idx === -1) return;
@@ -202,8 +237,11 @@ export default function App() {
   const handleContentChange = (c) => { setContent(c); updateStats(c); scheduleAutoSave(); };
 
   const scheduleAutoSave = () => {
+    setIsSaving(true);
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(saveCurrentNote, 2000);
+    autoSaveTimer.current = setTimeout(() => {
+      saveCurrentNoteImmediate().then(() => setIsSaving(false));
+    }, 1500);
   };
 
   const updateStats = (text) => {
@@ -216,7 +254,7 @@ export default function App() {
 
   const updateNoteStatusUI = (note) => {
     if (!note) {
-      setNoteStatus({ text: 'No note selected', color: COLORS.textSecondary });
+      setNoteStatus({ text: '', color: COLORS.textSecondary });
       return;
     }
     const colors = {
@@ -227,10 +265,12 @@ export default function App() {
       [SYNC_STATUS.DELETED_PENDING]: COLORS.textSecondary,
     };
     setNoteStatus({
-      text: 'Status: ' + (note.sync_status || 'unknown'),
+      text: note.sync_status || 'unknown',
       color: colors[note.sync_status] || COLORS.textSecondary,
     });
   };
+
+  // ===================== NOTE TOOLS =====================
 
   const copyNote = async () => {
     await Clipboard.setStringAsync(content);
@@ -242,7 +282,19 @@ export default function App() {
     Alert.alert('Clear Note', 'Clear all content?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => {
-        setTitle(''); setContent(''); updateStats(''); saveCurrentNote();
+        setTitle(''); setContent(''); updateStats('');
+        const idx = notes.findIndex(n => n.client_id === currentNoteId);
+        if (idx !== -1) {
+          const now = new Date().toISOString();
+          const updated = [...notes];
+          updated[idx] = {
+            ...updated[idx], title: '', content: '',
+            updated_at: now,
+            version: (updated[idx].version || 1) + 1,
+            sync_status: SYNC_STATUS.PENDING_SYNC,
+          };
+          saveNotes(updated).then(() => setNotes(updated));
+        }
       }},
     ]);
   };
@@ -262,9 +314,7 @@ export default function App() {
         );
         await saveNotes(updated);
         setNotes(updated);
-        setCurrentNoteId(null);
-        setTitle(''); setContent(''); updateStats('');
-        setNoteStatus({ text: 'Note deleted', color: COLORS.textSecondary });
+        goBackToList();
       }},
     ]);
   };
@@ -274,16 +324,13 @@ export default function App() {
       Alert.alert('Sync', 'Cannot sync: offline. Changes queued.');
       return;
     }
+    if (currentNoteId) await saveCurrentNoteImmediate();
     setIsSyncing(true);
     try {
       await syncClient.current.pushPendingChanges();
       await syncClient.current.pullServerChanges();
       const updatedNotes = await loadNotes();
       setNotes(updatedNotes);
-      if (currentNoteId) {
-        const n = updatedNotes.find(n => n.client_id === currentNoteId);
-        if (n) updateNoteStatusUI(n);
-      }
       Alert.alert('Sync', 'Sync complete!');
     } catch (e) {
       Alert.alert('Sync Error', e.message);
@@ -300,15 +347,26 @@ export default function App() {
       [SYNC_STATUS.CONFLICT]: '!',
     };
     const displayTitle = item.title || item.content?.slice(0, 50) || 'Untitled';
-    const isActive = item.client_id === currentNoteId;
+    const preview = item.content ? item.content.slice(0, 80).replace(/\n/g, ' ') : '';
+    const dateStr = item.updated_at
+      ? new Date(item.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
     return (
       <TouchableOpacity
-        style={[styles.noteItem, isActive && styles.noteItemActive]}
-        onPress={() => selectNote(item.client_id)}
+        style={styles.noteItem}
+        onPress={() => openNote(item.client_id)}
+        activeOpacity={0.7}
       >
-        <Text style={[styles.noteItemText, isActive && styles.noteItemTextActive]} numberOfLines={1}>
-          {icons[item.sync_status] || '?'} {displayTitle}
-        </Text>
+        <View style={styles.noteItemRow}>
+          <Text style={styles.noteItemIcon}>{icons[item.sync_status] || '?'}</Text>
+          <View style={styles.noteItemContent}>
+            <Text style={styles.noteItemTitle} numberOfLines={1}>{displayTitle}</Text>
+            {preview ? (
+              <Text style={styles.noteItemPreview} numberOfLines={1}>{preview}</Text>
+            ) : null}
+          </View>
+          <Text style={styles.noteItemDate}>{dateStr}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -364,80 +422,144 @@ export default function App() {
     );
   }
 
+  // ===================== NOTE LIST SCREEN =====================
+
+  if (screen === 'list') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>SahabNote</Text>
+          <View style={styles.headerRight}>
+            <Text style={[styles.statusDot, { color: isOnline ? COLORS.success : COLORS.textSecondary }]}>
+              {isOnline ? '\u25CF' : '\u25CB'}
+            </Text>
+            <TouchableOpacity style={styles.headerBtn} onPress={syncNow}>
+              <Text style={styles.headerBtnText}>{isSyncing ? '...' : '\u27F3'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerBtn} onPress={handleLogout}>
+              <Text style={[styles.headerBtnText, { color: COLORS.danger }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Search */}
+        <TextInput style={styles.searchInput} placeholder="Search notes..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={search} onChangeText={setSearch} />
+
+        {/* Note list */}
+        <FlatList
+          data={getFilteredNotes()}
+          keyExtractor={(item) => item.client_id}
+          renderItem={renderNoteItem}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No notes yet</Text>
+              <Text style={styles.emptySubtext}>Tap + to create your first note</Text>
+            </View>
+          }
+          style={styles.noteList}
+          contentContainerStyle={styles.noteListContent}
+          keyboardShouldPersistTaps="handled"
+        />
+
+        {/* Floating Action Button */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={createNewNote}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // ===================== NOTE EDITOR SCREEN =====================
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SahabNote</Text>
-        <View style={styles.headerRight}>
-          <Text style={[styles.statusDot, { color: isOnline ? COLORS.success : COLORS.textSecondary }]}>
-            {isOnline ? '\u25CF' : '\u25CB'}
+      {/* Editor Header */}
+      <View style={styles.editorHeader}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBackToList}>
+          <Text style={styles.backBtnText}>{'\u2190'}</Text>
+        </TouchableOpacity>
+
+        <View style={styles.editorHeaderCenter}>
+          <Text style={styles.editorHeaderTitle} numberOfLines={1}>
+            {title || 'New Note'}
+          </Text>
+          {isSaving && (
+            <Text style={styles.savingText}>saving...</Text>
+          )}
+        </View>
+
+        <View style={styles.editorHeaderRight}>
+          <Text style={[styles.syncBadge, { color: noteStatus.color }]}>
+            {noteStatus.text || ''}
           </Text>
           <TouchableOpacity style={styles.headerBtn} onPress={syncNow}>
             <Text style={styles.headerBtnText}>{isSyncing ? '...' : '\u27F3'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleLogout}>
-            <Text style={[styles.headerBtnText, { color: COLORS.danger }]}>Logout</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
-      <TextInput style={styles.searchInput} placeholder="Search notes..."
-        placeholderTextColor={COLORS.textSecondary}
-        value={search} onChangeText={setSearch} />
-
-      <View style={styles.noteListContainer}>
-        <FlatList data={getFilteredNotes()} keyExtractor={(item) => item.client_id}
-          renderItem={renderNoteItem}
-          ListEmptyComponent={<Text style={styles.emptyText}>No notes yet. Create one!</Text>}
-          horizontal={false} style={styles.noteList} keyboardShouldPersistTaps="handled" />
-        <TouchableOpacity style={styles.newNoteBtn} onPress={createNewNote}>
-          <Text style={styles.newNoteBtnText}>+ New Note</Text>
-        </TouchableOpacity>
-      </View>
-
+      {/* Editor Body */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-        style={styles.editorContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-        <TextInput style={styles.titleInput} placeholder="Note title..."
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.editorBody}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <TextInput
+          style={styles.editorTitleInput}
+          placeholder="Note title..."
           placeholderTextColor={COLORS.textSecondary}
-          value={title} onChangeText={handleTitleChange}
-          editable={!!currentNoteId} />
-        <TextInput style={styles.contentInput} placeholder="Start writing..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={content} onChangeText={handleContentChange}
-          multiline textAlignVertical="top" editable={!!currentNoteId} />
+          value={title}
+          onChangeText={handleTitleChange}
+          autoFocus={!title && !content}
+          returnKeyType="next"
+          blurOnSubmit
+        />
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]}
-            onPress={saveCurrentNote} disabled={!currentNoteId}>
-            <Text style={styles.actionBtnText}>Save</Text>
+        <TextInput
+          style={styles.editorContentInput}
+          placeholder="Start writing..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={content}
+          onChangeText={handleContentChange}
+          multiline
+          textAlignVertical="top"
+          autoFocus={!!title || !!content}
+          scrollEnabled
+        />
+
+        {/* Toolbar */}
+        <View style={styles.toolbar}>
+          <TouchableOpacity style={styles.toolBtn} onPress={copyNote}>
+            <Text style={styles.toolBtnText}>Copy</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}
-            onPress={copyNote} disabled={!currentNoteId}>
-            <Text style={styles.actionBtnText}>Copy</Text>
+          <TouchableOpacity style={styles.toolBtn} onPress={clearNote}>
+            <Text style={styles.toolBtnText}>Clear</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}
-            onPress={clearNote} disabled={!currentNoteId}>
-            <Text style={styles.actionBtnText}>Clear</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]}
-            onPress={deleteNote} disabled={!currentNoteId}>
-            <Text style={styles.actionBtnText}>Delete</Text>
+          <TouchableOpacity style={[styles.toolBtn, styles.toolBtnDanger]} onPress={deleteNote}>
+            <Text style={[styles.toolBtnText, { color: COLORS.danger }]}>Delete</Text>
           </TouchableOpacity>
           {isSyncing && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
 
-        <View style={styles.footer}>
+        {/* Stats */}
+        <View style={styles.editorFooter}>
           <View style={styles.stats}>
             <Text style={styles.statText}>Chars: {stats.chars}</Text>
             <Text style={styles.statText}>Words: {stats.words}</Text>
             <Text style={styles.statText}>Lines: {stats.lines}</Text>
             <Text style={styles.statText}>Tokens: ~{stats.tokens}</Text>
           </View>
-          <Text style={[styles.noteStatus, { color: noteStatus.color }]}>{noteStatus.text}</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -445,9 +567,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  // --- Common ---
   container: { flex: 1, backgroundColor: COLORS.background },
+
+  // --- Loading ---
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingTitle: { fontSize: 28, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
+
+  // --- Login ---
   loginContainer: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 40 },
   loginTitle: { fontSize: 32, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 8 },
   loginSubtitle: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 32 },
@@ -460,32 +587,106 @@ const styles = StyleSheet.create({
   loginBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   registerBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: 16 },
   loginServerUrl: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+
+  // --- Header ---
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
   headerTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusDot: { fontSize: 16 },
   headerBtn: { padding: 6 },
   headerBtnText: { fontSize: 16, color: COLORS.primary, fontWeight: '500' },
-  searchInput: { margin: 12, padding: 10, backgroundColor: COLORS.surface, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, fontSize: 14, color: COLORS.text },
-  noteListContainer: { maxHeight: 180, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+
+  // --- Search ---
+  searchInput: {
+    margin: 12, marginBottom: 4, padding: 10,
+    backgroundColor: COLORS.surface, borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.border,
+    fontSize: 14, color: COLORS.text,
+  },
+
+  // --- Note List ---
   noteList: { flex: 1 },
-  noteItem: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.surface },
-  noteItemActive: { backgroundColor: '#dbeafe' },
-  noteItemText: { fontSize: 14, color: COLORS.text },
-  noteItemTextActive: { color: COLORS.primaryDark, fontWeight: '600' },
-  emptyText: { textAlign: 'center', padding: 20, color: COLORS.textSecondary },
-  newNoteBtn: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
-  newNoteBtnText: { color: '#fff', fontWeight: '600' },
-  editorContainer: { flex: 1, backgroundColor: COLORS.surface, margin: 12, borderRadius: 12, padding: 12 },
-  titleInput: { fontSize: 18, fontWeight: '600', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 8, color: COLORS.text },
-  contentInput: { flex: 1, fontSize: 15, lineHeight: 22, color: COLORS.text, paddingVertical: 8 },
-  actions: { flexDirection: 'row', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border, alignItems: 'center' },
-  actionBtn: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
-  actionBtnPrimary: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  actionBtnDanger: { borderColor: '#fca5a5' },
-  actionBtnText: { fontSize: 16 },
-  footer: { paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border },
+  noteListContent: { paddingBottom: 80 },
+  noteItem: {
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  noteItemRow: { flexDirection: 'row', alignItems: 'center' },
+  noteItemIcon: { fontSize: 14, marginRight: 10, color: COLORS.textSecondary, width: 18 },
+  noteItemContent: { flex: 1 },
+  noteItemTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
+  noteItemPreview: { fontSize: 13, color: COLORS.textSecondary },
+  noteItemDate: { fontSize: 11, color: COLORS.textSecondary, marginLeft: 8 },
+
+  // --- Empty State ---
+  emptyContainer: { alignItems: 'center', paddingTop: 60 },
+  emptyText: { fontSize: 18, color: COLORS.textSecondary, marginBottom: 4 },
+  emptySubtext: { fontSize: 14, color: COLORS.textSecondary },
+
+  // --- Floating Action Button ---
+  fab: {
+    position: 'absolute', bottom: 24, right: 24,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 4,
+  },
+  fabText: { fontSize: 28, color: '#fff', lineHeight: 30, fontWeight: '300' },
+
+  // --- Editor Header ---
+  editorHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingVertical: 10,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  backBtn: { padding: 8, marginRight: 4 },
+  backBtnText: { fontSize: 22, color: COLORS.primary },
+  editorHeaderCenter: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  editorHeaderTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, flexShrink: 1 },
+  savingText: { fontSize: 11, color: COLORS.textSecondary, marginLeft: 8, fontStyle: 'italic' },
+  editorHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  syncBadge: { fontSize: 11, fontWeight: '500' },
+
+  // --- Editor Body ---
+  editorBody: {
+    flex: 1, backgroundColor: COLORS.surface,
+    margin: 12, borderRadius: 12, padding: 12,
+  },
+  editorTitleInput: {
+    fontSize: 18, fontWeight: '600', paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    marginBottom: 8, color: COLORS.text,
+  },
+  editorContentInput: {
+    flex: 1, fontSize: 15, lineHeight: 22,
+    color: COLORS.text, paddingVertical: 8,
+    textAlignVertical: 'top',
+  },
+
+  // --- Toolbar ---
+  toolbar: {
+    flexDirection: 'row', gap: 8,
+    paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border,
+    alignItems: 'center',
+  },
+  toolBtn: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 8, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  toolBtnDanger: { borderColor: '#fca5a5' },
+  toolBtnText: { fontSize: 14, color: COLORS.text },
+
+  // --- Editor Footer ---
+  editorFooter: { paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border },
   stats: { flexDirection: 'row', justifyContent: 'space-between' },
   statText: { fontSize: 11, color: COLORS.textSecondary },
-  noteStatus: { fontSize: 11, marginTop: 4 },
 });
