@@ -8,6 +8,8 @@
 - A GitHub account
 - Your code pushed to a GitHub repository
 
+> 📖 **Complete Environment Variable Reference**: For a comprehensive list of all environment variables, including detailed descriptions, expected formats, and verification steps, see the [Render Environment Reference](../doc/render-env.md).
+
 ## Steps
 
 ### 1. Create a Render Account
