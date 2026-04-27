@@ -308,7 +308,7 @@ def check_docs_freshness() -> CheckResult:
         if "scripts" in py_file.parts:
             continue
         content = py_file.read_text()
-        for match in re.finditer(r'os\.environ\.get\(["\\']([^"\\']+)["\\']', content):
+        for match in re.finditer(r'os\.environ\.get\(["\']([^"\']+)["\']', content):
             env_vars_found.add(match.group(1))
 
     # Check which env vars are documented
@@ -328,7 +328,7 @@ def check_docs_freshness() -> CheckResult:
         if "tests" in py_file.parts or "scripts" in py_file.parts or py_file.name == "__init__.py":
             continue
         content = py_file.read_text()
-        for match in re.finditer(r'@router\.(get|post|put|delete|patch)\(["\\']([^"\\']+)["\\']', content):
+        for match in re.finditer(r'@router\.(get|post|put|delete|patch)\(["\']([^"\']+)["\']', content):
             route_patterns.add(f"{match.group(1).upper()} {match.group(2)}")
 
     # Read test file to check which routes are tested
