@@ -42,6 +42,8 @@ This is the single source of truth for SahabNote-specific config.
 - Has its **own isolated** `node_modules` (symlink was broken during SDK 54 upgrade)
 - To create a new branch: `git fetch origin main && git checkout -b <name> origin/main`
 - Cannot `git checkout main` from worktree
+- **Important**: The `doc/` and `doc/tasks/` directories may exist only in the parent repo, not the worktree. If a `@/doc/tasks/...` reference fails, check `/srv/dev/SahabNote/doc/tasks/` for the file.
+- **Important**: File contents may differ between worktree and parent repo. Always re-read the target file at the exact worktree path before editing. Do not assume content matches the parent repo.
 
 ## Deployment
 
