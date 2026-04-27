@@ -49,8 +49,10 @@ This is the single source of truth for SahabNote-specific config.
 - **URL**: https://sahabnote.onrender.com
 - **Health Check**: https://sahabnote.onrender.com/api/health
 - **API Docs**: https://sahabnote.onrender.com/docs
+- **Environment Variables Reference**: See [doc/render-env.md](doc/render-env.md) for the complete list of all environment variables, their defaults, and verification steps.
 - The free tier spins down after 15 min of inactivity; first request may take 30-60s to wake up.
 - Data is stored in SQLite on Render's ephemeral filesystem — for production use with persistent data, switch to PostgreSQL.
+- Render free tier has **no Shell access** — use `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars to auto-create admins. See [doc/render-env.md](doc/render-env.md) for details.
 
 ### Local Development Backend
 ```bash
