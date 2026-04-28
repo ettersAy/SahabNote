@@ -1,0 +1,5 @@
+<type>: <short summary (max 72 chars)>
+
+<detailed body explaining what and why, wrapped at 72 chars>
+
+Fixes: #<issue>
