@@ -77,5 +77,5 @@ A script that verifies no file exceeds a line-count threshold, checks for unused
 
 ## 6. Task File Suggestions
 
-See companion task file:
+See companion task files:
 - [doc/tasks/codebase-validate-script.md](../tasks/codebase-validate-script.md)
