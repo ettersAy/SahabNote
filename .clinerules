@@ -42,6 +42,8 @@ This is the single source of truth for SahabNote-specific config.
 - Has its **own isolated** `node_modules` (symlink was broken during SDK 54 upgrade)
 - To create a new branch: `git fetch origin main && git checkout -b <name> origin/main`
 - Cannot `git checkout main` from worktree
+- **Important**: The `doc/` and `doc/tasks/` directories may exist only in the parent repo, not the worktree. If a `@/doc/tasks/...` reference fails, check `/srv/dev/SahabNote/doc/tasks/` for the file.
+- **Important**: File contents may differ between worktree and parent repo. Always re-read the target file at the exact worktree path before editing. Do not assume content matches the parent repo.
 
 ## Deployment
 
@@ -76,44 +78,6 @@ sn_f9480efa28b70b6bb18885ea09f82c93ed09a6c7d7e6a3c7
 ```
 Register a new user on any client to get a new sync key.
 
-## Admin Interface
-
-### Web UI
-- Accessible at `/admin.html` (e.g., `http://localhost:8000/admin.html` or `https://sahabnote.onrender.com/admin.html`)
-- Login uses regular credentials — no separate admin login
-- Dashboard shows stats, users table, expandable notes per user, note viewer modal
-
-### Making a User Admin
-```bash
-cd backend && python3 run.py --seed-admin <username>
-```
-
-### Admin API Endpoints (prefix: `/api/admin`)
-All require `Depends(get_current_admin_id)` — returns 403 for non-admins.
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /stats` | Dashboard stats |
-| `GET /users` | List all users (masked sync keys) |
-| `GET /users/{id}/notes` | List notes for a user |
-| `GET /users/{id}/notes/{nid}` | Full note content |
-| `DELETE /users/{id}/notes/{nid}` | Soft-delete (default) or `?hard_delete=true` |
-| `POST /users/{id}/reset-sync-key` | Reset sync key |
-| `GET /audit-log` | View audit log |
-
-### Database Migrations
-- `migrate_db()` runs on startup to add `is_admin` column and `admin_audit_log` table
-- Fresh `init_db()` already includes both
-
-### Creating an Admin (Production on Render)
-- **No default admin account** exists. You must promote a user.
-- Use Render's **Shell** tab: `python3 run.py --seed-admin <username>`
-- See `backend/deploy_instructions.md` for full guide and DB management commands
-
-### Admin Panel URL
-- `/admin.html` — e.g. `https://sahabnote.onrender.com/admin.html`
-- Health endpoint now reports: `{"admin_interface": true/false}`
-
 ## Health Monitoring Scripts
 - `scripts/health_tray.py` — Linux system tray indicator that pings `https://sahabnote.onrender.com/api/health`
 - `scripts/health-widget.html` — Browser-based health widget (open in any browser) that monitors the same endpoint
@@ -127,21 +91,3 @@ Important instructions:
 - If you determine that a task would be handled more effectively using an existing MCP server, you are authorized to install it yourself or ask me to install it for you.
 - If, during this mission, you identify repetitive actions that could be automated with a Bash script for future tasks, let me know so I can plan and create one.
 - Likewise, if you have ideas for useful Laravel commands, automation tools, or even a new MCP server that could improve future workflows, share them with me. I will create dedicated tasks to implement those ideas.
-
-## Pre-Deploy Validation
-
-Before creating or approving any deploy-related PR, run the pre-deployment validation script:
-
-```bash
-python3 backend/scripts/pre_deploy_check.py --live
-```
-
-This ensures:
-- The backend API imports correctly
-- All tests pass
-- Static files serve correctly
-- Documentation is up to date with code
-- Environment variables are properly configured
-- The health endpoint responds as expected
-
-If the script exits with a non-zero status, investigate and fix the failures before proceeding with the deployment.
