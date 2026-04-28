@@ -10,7 +10,11 @@
     "versions": "node -e \"const fs=require('fs');const pkgs=['expo','react-native','react','@react-native-async-storage/async-storage','expo-clipboard','expo-status-bar'];pkgs.forEach(p=>{try{const v=require(p+'/package.json').version;console.log(p+': '+v)}catch{console.log(p+': NOT INSTALLED')}})\"",
     "doctor": "npx expo-doctor",
     "validate": "npm run versions && echo '---' && npx expo config --type public && echo '---' && npm run doctor",
-    "start:worktree": "PORT=${PORT:-8082}; echo \"Starting on port $PORT...\"; npx expo start --clear --port $PORT"
+    "start:worktree": "PORT=${PORT:-8082}; echo \"Starting on port $PORT...\"; npx expo start --clear --port $PORT",
+    "check:js": "node -e \"try { require('./android/src/App.js'); } catch(e) { if (e instanceof SyntaxError) { console.error('SYNTAX ERROR:', e.message); process.exit(1); } else { console.log('Module load error (expected):', e.message); } }\"",
+    "scanner": "bash scripts/scanner.sh",
+    "setup:git": "git config commit.template .gitmessage && echo 'Git commit template set to .gitmessage'",
+    "snapshot": "bash scripts/scanner.sh --cached"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
