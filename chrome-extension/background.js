@@ -88,6 +88,10 @@ async function handleSync() {
         headers,
         body: JSON.stringify({ notes: pushItems })
       });
+      if (!pushResp.ok) {
+        const text = await pushResp.text();
+        throw new Error(`Server returned ${pushResp.status}: ${text.slice(0, 200)}`);
+      }
       const pushData = await pushResp.json();
 
       if (pushData.success) {
@@ -114,6 +118,10 @@ async function handleSync() {
       method: 'GET',
       headers
     });
+    if (!pullResp.ok) {
+      const text = await pullResp.text();
+      throw new Error(`Server returned ${pullResp.status}: ${text.slice(0, 200)}`);
+    }
     const pullData = await pullResp.json();
 
     if (pullData.success && pullData.data.notes) {
